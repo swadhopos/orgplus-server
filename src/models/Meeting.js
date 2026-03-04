@@ -1,6 +1,11 @@
 const mongoose = require('mongoose');
 
 const meetingSchema = new mongoose.Schema({
+  title: {
+    type: String,
+    required: true,
+    trim: true
+  },
   committeeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Committee',
@@ -15,12 +20,32 @@ const meetingSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
-  agenda: {
-    type: String,
-    required: true
-  },
-  minutes: {
-    type: String
+  agenda: [{
+    topic: {
+      type: String,
+      required: true
+    },
+    presenter: String,
+    status: {
+      type: String,
+      enum: ['pending', 'discussed', 'deferred'],
+      default: 'pending'
+    }
+  }],
+  minutes: [{
+    content: {
+      type: String,
+      required: true
+    },
+    actionItems: [String],
+    loggedAt: {
+      type: Date,
+      default: Date.now
+    }
+  }],
+  attendanceFinalized: {
+    type: Boolean,
+    default: false
   },
   status: {
     type: String,
@@ -52,7 +77,7 @@ meetingSchema.index({ committeeId: 1, organizationId: 1 });
 meetingSchema.index({ meetingDate: 1 });
 
 // Middleware to update updatedAt
-meetingSchema.pre('save', function(next) {
+meetingSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });

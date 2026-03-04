@@ -5,9 +5,6 @@ const { authenticateToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/authorize');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
 
-// All routes require authentication
-router.use(authenticateToken);
-
 // All routes require admin or systemAdmin role
 router.use(requireRole('systemAdmin', 'admin'));
 

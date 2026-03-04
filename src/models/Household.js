@@ -1,48 +1,83 @@
 const mongoose = require('mongoose');
 
 const householdSchema = new mongoose.Schema({
-  houseNumber: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  block: {
-    type: String,
-    trim: true
-  },
-  floor: {
-    type: String,
-    trim: true
-  },
-  ownerName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  contactPhone: {
-    type: String,
-    required: true
-  },
-  contactEmail: {
-    type: String,
-    lowercase: true,
-    trim: true
-  },
-  occupancyStatus: {
-    type: String,
-    enum: ['owner-occupied', 'rented', 'vacant'],
-    default: 'owner-occupied'
-  },
-  userId: {
-    type: String,  // Firebase user ID
-    sparse: true
-  },
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Organization',
     required: true
   },
-  // Audit fields
+  // Area hierarchy (optional)
+  regionId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Region'
+  },
+  zoneId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Zone'
+  },
+
+  // Address
+  houseName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+  houseNumber: {
+    type: String,
+    trim: true
+  },
+  addressLine1: {
+    type: String,
+    trim: true
+  },
+  addressLine2: {
+    type: String,
+    trim: true
+  },
+  postalCode: {
+    type: String,
+    trim: true
+  },
+
+  // Head of household
+  headMemberId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Member'
+  },
+
+  // Contact
+  primaryMobile: {
+    type: String,
+    trim: true
+  },
+
+  // Lifecycle
+  status: {
+    type: String,
+    enum: ['active', 'relocated', 'inactive', 'archived'],
+    default: 'active'
+  },
+  relocatedAt: {
+    type: Date
+  },
+  relocationReason: {
+    type: String,
+    enum: ['movedWithinOrganization', 'movedOutsideOrganization', 'migration', 'demolition', 'unknown']
+  },
+  relocationNotes: {
+    type: String
+  },
+
+  // Soft delete
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: Date,
+  deletedByUserId: String,
+  deletionReason: String,
+
+  // Audit
   createdAt: {
     type: Date,
     default: Date.now
@@ -54,23 +89,16 @@ const householdSchema = new mongoose.Schema({
   createdByUserId: {
     type: String,
     required: true
-  },
-  // Soft delete
-  isDeleted: {
-    type: Boolean,
-    default: false
-  },
-  deletedAt: Date,
-  deletedByUserId: String
+  }
 });
 
 // Indexes
 householdSchema.index({ organizationId: 1, isDeleted: 1 });
-householdSchema.index({ userId: 1 });
-householdSchema.index({ houseNumber: 1, organizationId: 1 });
+householdSchema.index({ headMemberId: 1 });
+householdSchema.index({ houseName: 1, organizationId: 1 });
 
 // Middleware to update updatedAt
-householdSchema.pre('save', function(next) {
+householdSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });

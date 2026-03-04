@@ -1,6 +1,7 @@
 const Committee = require('../models/Committee');
 const CommitteeMember = require('../models/CommitteeMember');
 const Member = require('../models/Member');
+const Meeting = require('../models/Meeting');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 
@@ -10,7 +11,7 @@ const logger = require('../utils/logger');
 exports.createCommittee = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { name, description, type, status } = req.body;
+    const { name, description, type, status, startDate, endDate } = req.body;
 
     // Validate required fields
     if (!name || !type) {
@@ -23,6 +24,8 @@ exports.createCommittee = async (req, res, next) => {
       description,
       type,
       status: status || 'active',
+      startDate,
+      endDate,
       organizationId: orgId,
       createdByUserId: req.user.uid
     });
@@ -99,14 +102,21 @@ exports.getCommittee = async (req, res, next) => {
       committeeId: id,
       organizationId: orgId
     })
-      .populate('memberId', 'firstName lastName householdId')
+      .populate('memberId', 'fullName currentHouseholdId')
       .sort({ role: 1 });
+
+    // Get meetings
+    const meetings = await Meeting.find({
+      committeeId: id,
+      organizationId: orgId
+    });
 
     res.json({
       success: true,
       data: {
         ...committee.toObject(),
-        members
+        members,
+        meetings
       }
     });
   } catch (error) {
@@ -120,7 +130,7 @@ exports.getCommittee = async (req, res, next) => {
 exports.updateCommittee = async (req, res, next) => {
   try {
     const { orgId, id } = req.params;
-    const { name, description, type, status } = req.body;
+    const { name, description, type, status, startDate, endDate } = req.body;
 
     // Apply tenant filter
     const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
@@ -136,6 +146,8 @@ exports.updateCommittee = async (req, res, next) => {
     if (description !== undefined) committee.description = description;
     if (type) committee.type = type;
     if (status) committee.status = status;
+    if (startDate !== undefined) committee.startDate = startDate;
+    if (endDate !== undefined) committee.endDate = endDate;
 
     await committee.save();
 
@@ -195,11 +207,21 @@ exports.deleteCommittee = async (req, res, next) => {
 exports.addCommitteeMember = async (req, res, next) => {
   try {
     const { orgId, committeeId } = req.params;
-    const { memberId, role, startDate, endDate, status } = req.body;
+    const { memberId, role, startDate, endDate, status, isExternal, externalMemberName, externalMemberPhone } = req.body;
 
     // Validate required fields
-    if (!memberId || !role || !startDate) {
-      throw new ValidationError('Missing required fields: memberId, role, startDate');
+    if (!role || !startDate) {
+      throw new ValidationError('Missing required fields: role, startDate');
+    }
+
+    if (isExternal) {
+      if (!externalMemberName) {
+        throw new ValidationError('Missing required field: externalMemberName for external members');
+      }
+    } else {
+      if (!memberId) {
+        throw new ValidationError('Missing required field: memberId for internal members');
+      }
     }
 
     // Verify committee exists
@@ -213,21 +235,26 @@ exports.addCommitteeMember = async (req, res, next) => {
       throw new NotFoundError('Committee not found');
     }
 
-    // Verify member exists in same organization
-    const member = await Member.findOne({
-      _id: memberId,
-      organizationId: orgId,
-      isDeleted: false
-    });
+    // Verify member exists in same organization if not external
+    if (!isExternal) {
+      const member = await Member.findOne({
+        _id: memberId,
+        organizationId: orgId,
+        isDeleted: false
+      });
 
-    if (!member) {
-      throw new NotFoundError('Member not found');
+      if (!member) {
+        throw new NotFoundError('Member not found');
+      }
     }
 
     // Create committee member
     const committeeMember = new CommitteeMember({
       committeeId,
-      memberId,
+      memberId: isExternal ? undefined : memberId,
+      isExternal: !!isExternal,
+      externalMemberName,
+      externalMemberPhone,
       role,
       startDate,
       endDate,
@@ -266,7 +293,7 @@ exports.listCommitteeMembers = async (req, res, next) => {
     const filter = { committeeId, organizationId: orgId, ...req.tenantFilter };
 
     const committeeMembers = await CommitteeMember.find(filter)
-      .populate('memberId', 'firstName lastName householdId')
+      .populate('memberId', 'fullName currentHouseholdId')
       .sort({ role: 1, startDate: -1 });
 
     res.json({

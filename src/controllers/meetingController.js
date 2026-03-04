@@ -10,12 +10,12 @@ const logger = require('../utils/logger');
  */
 exports.createMeeting = async (req, res, next) => {
   try {
-    const { orgId, committeeId } = req.params;
-    const { meetingDate, location, agenda, minutes, status } = req.body;
+    const { orgId } = req.params;
+    const { committeeId, title, meetingDate, location, agenda, minutes, status } = req.body;
 
     // Validate required fields
-    if (!meetingDate || !location || !agenda) {
-      throw new ValidationError('Missing required fields: meetingDate, location, agenda');
+    if (!title || !meetingDate || !location) {
+      throw new ValidationError('Missing required fields: title, meetingDate, location');
     }
 
     // Verify committee exists in same organization
@@ -32,10 +32,11 @@ exports.createMeeting = async (req, res, next) => {
     // Create meeting
     const meeting = new Meeting({
       committeeId,
+      title,
       meetingDate,
       location,
-      agenda,
-      minutes,
+      agenda: agenda || [],
+      minutes: minutes || [],
       status: status || 'scheduled',
       organizationId: orgId,
       createdByUserId: req.user.uid
@@ -64,8 +65,8 @@ exports.createMeeting = async (req, res, next) => {
  */
 exports.listMeetings = async (req, res, next) => {
   try {
-    const { orgId, committeeId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { orgId } = req.params;
+    const { page = 1, limit = 10, committeeId } = req.query;
     const skip = (page - 1) * limit;
 
     // Apply tenant filter
@@ -119,7 +120,7 @@ exports.getMeeting = async (req, res, next) => {
         path: 'committeeMemberId',
         populate: {
           path: 'memberId',
-          select: 'firstName lastName'
+          select: 'fullName'
         }
       });
 
@@ -141,7 +142,7 @@ exports.getMeeting = async (req, res, next) => {
 exports.updateMeeting = async (req, res, next) => {
   try {
     const { orgId, id } = req.params;
-    const { meetingDate, location, agenda, minutes, status } = req.body;
+    const { title, meetingDate, location, agenda, minutes, status } = req.body;
 
     // Apply tenant filter
     const filter = { _id: id, organizationId: orgId, ...req.tenantFilter };
@@ -153,10 +154,46 @@ exports.updateMeeting = async (req, res, next) => {
     }
 
     // Update fields
+    if (title) meeting.title = title;
+    // ensure legacy meetings have a title before saving to avoid validation errors
+    if (!meeting.title) meeting.title = 'Untitled Meeting';
+
+    // Handle legacy agenda data (sometimes stored as string or array of strings)
+    let currentAgenda = agenda || meeting.agenda;
+    if (typeof currentAgenda === 'string') {
+      currentAgenda = [{ topic: currentAgenda, status: 'discussed' }];
+    } else if (Array.isArray(currentAgenda)) {
+      currentAgenda = currentAgenda.map(item => {
+        if (typeof item === 'string') return { topic: item, status: 'discussed' };
+        if (item && !item.topic) return { ...item, topic: 'Untitled Topic' };
+        return item;
+      });
+    } else {
+      currentAgenda = [];
+    }
+    meeting.agenda = currentAgenda;
+
+    // Handle legacy minutes data (ensure it's an array)
+    if (minutes !== undefined) {
+      if (typeof minutes === 'string') {
+        meeting.minutes = [{ content: minutes, loggedAt: new Date() }];
+      } else if (Array.isArray(minutes)) {
+        meeting.minutes = minutes.map(m => {
+          if (typeof m === 'string') return { content: m, loggedAt: new Date() };
+          if (m && !m.content) return { ...m, content: 'Untitled Content' };
+          return m;
+        });
+      } else {
+        meeting.minutes = [];
+      }
+    } else if (typeof meeting.minutes === 'string') {
+      meeting.minutes = [{ content: meeting.minutes, loggedAt: new Date() }];
+    } else if (!Array.isArray(meeting.minutes)) {
+      meeting.minutes = [];
+    }
+
     if (meetingDate) meeting.meetingDate = meetingDate;
     if (location) meeting.location = location;
-    if (agenda) meeting.agenda = agenda;
-    if (minutes !== undefined) meeting.minutes = minutes;
     if (status) meeting.status = status;
 
     await meeting.save();
@@ -197,6 +234,10 @@ exports.recordAttendance = async (req, res, next) => {
 
     if (!meeting) {
       throw new NotFoundError('Meeting not found');
+    }
+
+    if (meeting.attendanceFinalized) {
+      throw new ValidationError('Attendance is already finalized and cannot be changed.');
     }
 
     // Verify committee member exists and belongs to meeting's committee
@@ -267,7 +308,7 @@ exports.listAttendance = async (req, res, next) => {
         path: 'committeeMemberId',
         populate: {
           path: 'memberId',
-          select: 'firstName lastName'
+          select: 'fullName'
         }
       })
       .sort({ createdAt: -1 });
@@ -298,6 +339,12 @@ exports.updateAttendance = async (req, res, next) => {
       throw new NotFoundError('Attendance record not found');
     }
 
+    // Check if meeting is finalized
+    const meeting = await Meeting.findOne({ _id: attendance.meetingId, organizationId: orgId });
+    if (meeting && meeting.attendanceFinalized) {
+      throw new ValidationError('Attendance is already finalized and cannot be changed.');
+    }
+
     // Update fields
     if (attendanceStatus) attendance.attendanceStatus = attendanceStatus;
     if (remarks !== undefined) attendance.remarks = remarks;
@@ -313,6 +360,66 @@ exports.updateAttendance = async (req, res, next) => {
     res.json({
       success: true,
       data: attendance
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Soft delete meeting
+ */
+exports.deleteMeeting = async (req, res, next) => {
+  try {
+    const { orgId, id } = req.params;
+
+    // Apply tenant filter
+    const filter = { _id: id, organizationId: orgId, ...req.tenantFilter };
+
+    const meeting = await Meeting.findOne(filter);
+
+    if (!meeting) {
+      throw new NotFoundError('Meeting not found');
+    }
+
+    await Meeting.deleteOne({ _id: id });
+
+    logger.info('Meeting deleted', {
+      meetingId: id,
+      organizationId: orgId,
+      updatedBy: req.user.uid
+    });
+
+    res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Finalize attendance for a meeting
+ */
+exports.finalizeAttendance = async (req, res, next) => {
+  try {
+    const { orgId, meetingId } = req.params;
+
+    const meeting = await Meeting.findOne({ _id: meetingId, organizationId: orgId });
+    if (!meeting) {
+      throw new NotFoundError('Meeting not found');
+    }
+
+    meeting.attendanceFinalized = true;
+    await meeting.save();
+
+    logger.info('Attendance finalized', {
+      meetingId,
+      organizationId: orgId,
+      finalizedBy: req.user.uid
+    });
+
+    res.json({
+      success: true,
+      data: meeting
     });
   } catch (error) {
     next(error);

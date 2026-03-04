@@ -1,36 +1,45 @@
 const mongoose = require('mongoose');
 
 const memberSchema = new mongoose.Schema({
-  firstName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  lastName: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  dateOfBirth: {
-    type: Date,
+  organizationId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Organization',
     required: true
+  },
+
+  // Unique per-org identifiers
+  memberSequence: {
+    type: Number,
+    required: true
+  },
+  memberNumber: {
+    type: String,
+    required: true
+  },
+
+  // Identity
+  fullName: {
+    type: String,
+    required: true,
+    trim: true
   },
   gender: {
     type: String,
     enum: ['male', 'female', 'other'],
     required: true
   },
-  householdId: {
+  dateOfBirth: {
+    type: Date
+  },
+
+  // Current residence
+  currentHouseholdId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Household',
     required: true
   },
-  relationshipType: {
-    type: String,
-    enum: ['head', 'spouse', 'child', 'parent', 'sibling', 'other'],
-    required: true
-  },
-  // Relationship references
+
+  // Relationship graph (nullable until verified)
   fatherId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Member'
@@ -43,12 +52,73 @@ const memberSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Member'
   },
-  organizationId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Organization',
+
+  // Temporary names during data collection
+  fatherNameTemp: String,
+  motherNameTemp: String,
+  spouseNameTemp: String,
+
+  maritalStatus: {
+    type: String,
+    enum: ['single', 'married', 'divorced', 'widowed', 'separated'],
     required: true
   },
-  // Audit fields
+
+  // Contact
+  mobileNumber: {
+    type: String,
+    trim: true
+  },
+  email: {
+    type: String,
+    lowercase: true,
+    trim: true
+  },
+
+  // Work / Education
+  occupation: String,
+  isWorkingAbroad: {
+    type: Boolean,
+    default: false
+  },
+  abroadCountry: String,
+
+  // Lifecycle
+  status: {
+    type: String,
+    enum: ['active', 'relocated', 'deceased', 'inactive'],
+    default: 'active'
+  },
+  relocatedAt: Date,
+  relocationReason: {
+    type: String,
+    enum: ['marriage', 'jobTransfer', 'migration', 'education', 'unknown']
+  },
+
+  // Death information
+  isDeceased: {
+    type: Boolean,
+    default: false
+  },
+  deathDate: Date,
+  deathCause: String,
+
+  // Verification
+  isRelationshipVerified: {
+    type: Boolean,
+    default: false
+  },
+
+  // Soft delete
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
+  deletedAt: Date,
+  deletedByUserId: String,
+  deletionReason: String,
+
+  // Audit
   createdAt: {
     type: Date,
     default: Date.now
@@ -60,24 +130,18 @@ const memberSchema = new mongoose.Schema({
   createdByUserId: {
     type: String,
     required: true
-  },
-  // Soft delete
-  isDeleted: {
-    type: Boolean,
-    default: false
-  },
-  deletedAt: Date,
-  deletedByUserId: String
+  }
 });
 
 // Indexes
-memberSchema.index({ organizationId: 1, householdId: 1, isDeleted: 1 });
+memberSchema.index({ organizationId: 1, memberSequence: 1 }, { unique: true });
+memberSchema.index({ organizationId: 1, currentHouseholdId: 1, isDeleted: 1 });
 memberSchema.index({ fatherId: 1 });
 memberSchema.index({ motherId: 1 });
 memberSchema.index({ spouseId: 1 });
 
 // Middleware to update updatedAt
-memberSchema.pre('save', function(next) {
+memberSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });

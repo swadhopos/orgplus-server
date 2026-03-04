@@ -25,7 +25,7 @@ const authenticateToken = async (req, res, next) => {
   try {
     // Extract token from Authorization header
     const authHeader = req.headers.authorization;
-    
+
     if (!authHeader) {
       throw new AuthenticationError('Authorization header missing');
     }
@@ -37,21 +37,22 @@ const authenticateToken = async (req, res, next) => {
 
     // Extract the token
     const token = authHeader.substring(7); // Remove 'Bearer ' prefix
-    
+
     if (!token || token.trim() === '') {
       throw new AuthenticationError('Token is empty');
     }
 
     // Verify token using Firebase Admin SDK
     const decodedToken = await verifyIdToken(token);
-    
+
     // Extract user information and custom claims
     const userInfo = {
       uid: decodedToken.uid,
       email: decodedToken.email || null,
       role: decodedToken.role || null,
       orgId: decodedToken.orgId || null,
-      householdId: decodedToken.householdId || null
+      householdId: decodedToken.householdId || null,
+      permissions: decodedToken.permissions || []
     };
 
     // Attach user info to request object
@@ -71,15 +72,15 @@ const authenticateToken = async (req, res, next) => {
     if (error.code === 'auth/id-token-expired') {
       return next(new AuthenticationError('Token has expired'));
     }
-    
+
     if (error.code === 'auth/id-token-revoked') {
       return next(new AuthenticationError('Token has been revoked'));
     }
-    
+
     if (error.code === 'auth/invalid-id-token') {
       return next(new AuthenticationError('Invalid token'));
     }
-    
+
     if (error.code === 'auth/argument-error') {
       return next(new AuthenticationError('Malformed token'));
     }
@@ -112,7 +113,7 @@ const authenticateToken = async (req, res, next) => {
 const authenticateTokenOptional = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-    
+
     // If no auth header, just continue without user info
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       req.user = null;
@@ -120,7 +121,7 @@ const authenticateTokenOptional = async (req, res, next) => {
     }
 
     const token = authHeader.substring(7);
-    
+
     if (!token || token.trim() === '') {
       req.user = null;
       return next();
@@ -128,13 +129,14 @@ const authenticateTokenOptional = async (req, res, next) => {
 
     // Try to verify token
     const decodedToken = await verifyIdToken(token);
-    
+
     req.user = {
       uid: decodedToken.uid,
       email: decodedToken.email || null,
       role: decodedToken.role || null,
       orgId: decodedToken.orgId || null,
-      householdId: decodedToken.householdId || null
+      householdId: decodedToken.householdId || null,
+      permissions: decodedToken.permissions || []
     };
 
     next();

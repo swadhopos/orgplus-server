@@ -1,5 +1,6 @@
 const Member = require('../models/Member');
 const Household = require('../models/Household');
+const Counter = require('../models/Counter');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 
@@ -10,25 +11,28 @@ exports.createMember = async (req, res, next) => {
   try {
     const { orgId } = req.params;
     const {
-      firstName,
-      lastName,
-      dateOfBirth,
+      fullName,
       gender,
-      householdId,
-      relationshipType,
+      dateOfBirth,
+      currentHouseholdId,
+      maritalStatus,
+      mobileNumber,
+      email,
+      occupation,
       fatherId,
       motherId,
-      spouseId
+      spouseId,
+      status
     } = req.body;
 
     // Validate required fields
-    if (!firstName || !lastName || !dateOfBirth || !gender || !householdId || !relationshipType) {
+    if (!fullName || !gender || !currentHouseholdId || !maritalStatus) {
       throw new ValidationError('Missing required fields');
     }
 
     // Verify household exists in same organization
     const household = await Household.findOne({
-      _id: householdId,
+      _id: currentHouseholdId,
       organizationId: orgId,
       isDeleted: false
     });
@@ -71,17 +75,35 @@ exports.createMember = async (req, res, next) => {
       }
     }
 
+    // Atomically increment member counter for this organization
+    const counterId = `member_seq_${orgId}`;
+    let counter = await Counter.findOneAndUpdate(
+      { _id: counterId, organizationId: orgId },
+      { $inc: { sequenceValue: 1 } },
+      { new: true, upsert: true }
+    );
+
+    // If counter just created (sequenceValue is 1), let's ensure it starts at 1001 for member numbers
+    // Alternatively, just add 1000 to whatever comes out
+    const nextSequence = 1000 + counter.sequenceValue;
+    const memberNumber = `MEM-${nextSequence}`;
+
     // Create member
     const member = new Member({
-      firstName,
-      lastName,
-      dateOfBirth,
+      memberSequence: nextSequence,
+      memberNumber,
+      fullName,
       gender,
-      householdId,
-      relationshipType,
+      dateOfBirth,
+      currentHouseholdId,
+      maritalStatus,
+      mobileNumber,
+      email,
+      occupation,
       fatherId,
       motherId,
       spouseId,
+      status: status || 'active',
       organizationId: orgId,
       createdByUserId: req.user.uid
     });
@@ -91,7 +113,7 @@ exports.createMember = async (req, res, next) => {
     logger.info('Member created', {
       memberId: member._id,
       organizationId: orgId,
-      householdId,
+      currentHouseholdId,
       createdBy: req.user.uid
     });
 
@@ -110,19 +132,25 @@ exports.createMember = async (req, res, next) => {
 exports.listMembers = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { page = 1, limit = 10, householdId } = req.query;
+    const { page = 1, limit = 10, currentHouseholdId } = req.query;
     const skip = (page - 1) * limit;
 
     // Apply tenant filter
     const filter = { organizationId: orgId, isDeleted: false, ...req.tenantFilter };
 
+    // Convert tenant filter householdId mapping if it exists
+    if (filter.householdId) {
+      filter.currentHouseholdId = filter.householdId;
+      delete filter.householdId;
+    }
+
     // Optional household filter
-    if (householdId) {
-      filter.householdId = householdId;
+    if (currentHouseholdId) {
+      filter.currentHouseholdId = currentHouseholdId;
     }
 
     const members = await Member.find(filter)
-      .populate('householdId', 'houseNumber block')
+      .populate('currentHouseholdId', 'houseName houseNumber')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
@@ -155,10 +183,10 @@ exports.getMember = async (req, res, next) => {
     const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
 
     const member = await Member.findOne(filter)
-      .populate('householdId', 'houseNumber block ownerName')
-      .populate('fatherId', 'firstName lastName')
-      .populate('motherId', 'firstName lastName')
-      .populate('spouseId', 'firstName lastName');
+      .populate('currentHouseholdId', 'houseName houseNumber')
+      .populate('fatherId', 'fullName')
+      .populate('motherId', 'fullName')
+      .populate('spouseId', 'fullName');
 
     if (!member) {
       throw new NotFoundError('Member not found');
@@ -184,9 +212,9 @@ exports.getMemberRelationships = async (req, res, next) => {
     const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
 
     const member = await Member.findOne(filter)
-      .populate('fatherId', 'firstName lastName dateOfBirth gender')
-      .populate('motherId', 'firstName lastName dateOfBirth gender')
-      .populate('spouseId', 'firstName lastName dateOfBirth gender');
+      .populate('fatherId', 'fullName dateOfBirth gender')
+      .populate('motherId', 'fullName dateOfBirth gender')
+      .populate('spouseId', 'fullName dateOfBirth gender');
 
     if (!member) {
       throw new NotFoundError('Member not found');
@@ -200,7 +228,7 @@ exports.getMemberRelationships = async (req, res, next) => {
       ],
       organizationId: orgId,
       isDeleted: false
-    }).select('firstName lastName dateOfBirth gender');
+    }).select('fullName dateOfBirth gender');
 
     // Find siblings (same father or mother, excluding self)
     const siblings = await Member.find({
@@ -210,15 +238,14 @@ exports.getMemberRelationships = async (req, res, next) => {
       ],
       organizationId: orgId,
       isDeleted: false
-    }).select('firstName lastName dateOfBirth gender');
+    }).select('fullName dateOfBirth gender');
 
     res.json({
       success: true,
       data: {
         member: {
           _id: member._id,
-          firstName: member.firstName,
-          lastName: member.lastName,
+          fullName: member.fullName,
           dateOfBirth: member.dateOfBirth,
           gender: member.gender
         },
@@ -241,14 +268,18 @@ exports.updateMember = async (req, res, next) => {
   try {
     const { orgId, id } = req.params;
     const {
-      firstName,
-      lastName,
-      dateOfBirth,
+      fullName,
       gender,
-      relationshipType,
+      dateOfBirth,
+      currentHouseholdId,
+      maritalStatus,
+      mobileNumber,
+      email,
+      occupation,
       fatherId,
       motherId,
-      spouseId
+      spouseId,
+      status
     } = req.body;
 
     // Apply tenant filter
@@ -261,11 +292,15 @@ exports.updateMember = async (req, res, next) => {
     }
 
     // Update fields
-    if (firstName) member.firstName = firstName;
-    if (lastName) member.lastName = lastName;
-    if (dateOfBirth) member.dateOfBirth = dateOfBirth;
+    if (fullName) member.fullName = fullName;
     if (gender) member.gender = gender;
-    if (relationshipType) member.relationshipType = relationshipType;
+    if (dateOfBirth) member.dateOfBirth = dateOfBirth;
+    if (currentHouseholdId) member.currentHouseholdId = currentHouseholdId;
+    if (maritalStatus) member.maritalStatus = maritalStatus;
+    if (mobileNumber !== undefined) member.mobileNumber = mobileNumber;
+    if (email !== undefined) member.email = email;
+    if (occupation !== undefined) member.occupation = occupation;
+    if (status) member.status = status;
     if (fatherId !== undefined) member.fatherId = fatherId;
     if (motherId !== undefined) member.motherId = motherId;
     if (spouseId !== undefined) member.spouseId = spouseId;

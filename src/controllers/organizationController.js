@@ -8,11 +8,11 @@ const logger = require('../utils/logger');
  */
 exports.createOrganization = async (req, res, next) => {
   try {
-    const { 
+    const {
       name, type, registrationNumber, establishedDate, totalUnits,
       address, city, state, pincode, country,
       contactEmail, contactPhone, alternatePhone, website, description,
-      status, adminEmail, adminPassword 
+      status, adminEmail, adminPassword
     } = req.body;
 
     // Validate required fields
@@ -79,7 +79,7 @@ exports.createOrganization = async (req, res, next) => {
     } catch (authError) {
       // If admin creation fails, delete the organization
       await Organization.deleteOne({ _id: organization._id });
-      
+
       if (authError.code === 'auth/email-already-exists') {
         throw new ValidationError('Admin email already exists');
       }
@@ -110,7 +110,7 @@ exports.listOrganizations = async (req, res, next) => {
     // For systemAdmin: no filter (sees all)
     // For admin: filter by _id matching their orgId
     let filter = { isDeleted: false };
-    
+
     if (req.user && req.user.role === 'admin' && req.user.orgId) {
       filter._id = req.user.orgId;
     }
@@ -148,7 +148,7 @@ exports.getOrganization = async (req, res, next) => {
     // For systemAdmin: can access any org
     // For admin: can only access their own org
     let filter = { _id: id, isDeleted: false };
-    
+
     if (req.user && req.user.role === 'admin') {
       if (req.user.orgId !== id) {
         throw new NotFoundError('Organization not found');
@@ -179,7 +179,7 @@ exports.updateOrganization = async (req, res, next) => {
     const { name, address, contactEmail, contactPhone, status } = req.body;
 
     // Apply tenant filter
-    const filter = { _id: id, isDeleted: false, ...req.tenantFilter };
+    const filter = { _id: id, isDeleted: false };
 
     const organization = await Organization.findOne(filter);
 
@@ -218,7 +218,7 @@ exports.deleteOrganization = async (req, res, next) => {
     const { id } = req.params;
 
     // Apply tenant filter
-    const filter = { _id: id, isDeleted: false, ...req.tenantFilter };
+    const filter = { _id: id, isDeleted: false };
 
     const organization = await Organization.findOne(filter);
 

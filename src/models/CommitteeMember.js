@@ -9,7 +9,18 @@ const committeeMemberSchema = new mongoose.Schema({
   memberId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Member',
-    required: true
+    required: function () { return !this.isExternal; }
+  },
+  isExternal: {
+    type: Boolean,
+    default: false
+  },
+  externalMemberName: {
+    type: String,
+    required: function () { return this.isExternal; }
+  },
+  externalMemberPhone: {
+    type: String
   },
   role: {
     type: String,
@@ -53,7 +64,7 @@ committeeMemberSchema.index({ committeeId: 1, organizationId: 1 });
 committeeMemberSchema.index({ memberId: 1 });
 
 // Middleware to update updatedAt
-committeeMemberSchema.pre('save', function(next) {
+committeeMemberSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });

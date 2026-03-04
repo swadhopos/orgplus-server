@@ -115,8 +115,7 @@ const organizationSchema = new mongoose.Schema({
   // Soft delete fields
   isDeleted: {
     type: Boolean,
-    default: false,
-    index: true
+    default: false
   },
   deletedAt: {
     type: Date,
@@ -129,11 +128,10 @@ const organizationSchema = new mongoose.Schema({
 });
 
 // Indexes
-organizationSchema.index({ name: 1 }, { unique: true });
 organizationSchema.index({ isDeleted: 1 });
 
 // Pre-save middleware to update updatedAt timestamp
-organizationSchema.pre('save', function(next) {
+organizationSchema.pre('save', function (next) {
   if (!this.isNew) {
     this.updatedAt = new Date();
   }
@@ -141,13 +139,13 @@ organizationSchema.pre('save', function(next) {
 });
 
 // Pre-update middleware to update updatedAt timestamp
-organizationSchema.pre('findOneAndUpdate', function(next) {
+organizationSchema.pre('findOneAndUpdate', function (next) {
   this.set({ updatedAt: new Date() });
   next();
 });
 
 // Instance method to soft delete
-organizationSchema.methods.softDelete = function(userId) {
+organizationSchema.methods.softDelete = function (userId) {
   this.isDeleted = true;
   this.deletedAt = new Date();
   this.deletedByUserId = userId;
@@ -155,12 +153,12 @@ organizationSchema.methods.softDelete = function(userId) {
 };
 
 // Static method to find non-deleted organizations
-organizationSchema.statics.findActive = function(filter = {}) {
+organizationSchema.statics.findActive = function (filter = {}) {
   return this.find({ ...filter, isDeleted: false });
 };
 
 // Static method to find by ID excluding deleted
-organizationSchema.statics.findByIdActive = function(id) {
+organizationSchema.statics.findByIdActive = function (id) {
   return this.findOne({ _id: id, isDeleted: false });
 };
 

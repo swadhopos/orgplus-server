@@ -12,6 +12,10 @@ const householdRoutes = require('./routes/households');
 const memberRoutes = require('./routes/members');
 const committeeRoutes = require('./routes/committees');
 const meetingRoutes = require('./routes/meetings');
+const deathRegisterRoutes = require('./routes/deathRegisterRoutes');
+const staffRoutes = require('./routes/staff');
+const categoryRoutes = require('./routes/categories');
+const ledgerRoutes = require('./routes/ledger');
 
 const app = express();
 
@@ -52,14 +56,60 @@ app.get('/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/organizations', organizationRoutes);
 
-// Nested routes under organizations
-app.use('/api/organizations/:orgId/households', householdRoutes);
-app.use('/api/organizations/:orgId/members', memberRoutes);
-app.use('/api/organizations/:orgId/committees', committeeRoutes);
-app.use('/api/organizations/:orgId/meetings', meetingRoutes);
+// Nested routes under organizations - Protected by Auth and Org Access
+const { authenticateToken } = require('./middleware/auth');
+const { requireOrgAccess } = require('./middleware/authorize');
 
-// Also support committee-specific meeting routes
-app.use('/api/organizations/:orgId/committees/:committeeId/meetings', meetingRoutes);
+app.use('/api/organizations/:orgId/households',
+  authenticateToken,
+  requireOrgAccess,
+  householdRoutes
+);
+
+app.use('/api/organizations/:orgId/members',
+  authenticateToken,
+  requireOrgAccess,
+  memberRoutes
+);
+
+app.use('/api/organizations/:orgId/committees',
+  authenticateToken,
+  requireOrgAccess,
+  committeeRoutes
+);
+
+app.use('/api/organizations/:orgId/meetings',
+  authenticateToken,
+  requireOrgAccess,
+  meetingRoutes
+);
+
+app.use('/api/organizations/:orgId/deaths',
+  authenticateToken,
+  requireOrgAccess,
+  deathRegisterRoutes
+);
+
+app.use('/api/organizations/:orgId/staff',
+  authenticateToken,
+  requireOrgAccess,
+  staffRoutes
+);
+
+app.use('/api/organizations/:orgId/categories',
+  authenticateToken,
+  requireOrgAccess,
+  categoryRoutes
+);
+
+app.use('/api/organizations/:orgId/ledgers',
+  authenticateToken,
+  requireOrgAccess,
+  ledgerRoutes
+);
+
+// Only mount meetings on the organization root
+// Requests needing committee id should pass it in body for POST or query params for GET
 
 // 404 handler
 app.use((req, res) => {

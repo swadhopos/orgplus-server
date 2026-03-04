@@ -23,7 +23,7 @@ const requestLogger = (req, res, next) => {
   const start = Date.now();
 
   // Log incoming request
-  logger.info({
+  logger.info('Incoming request', {
     type: 'request',
     requestId: req.id,
     method: req.method,
@@ -43,8 +43,8 @@ const requestLogger = (req, res, next) => {
   // Log response when finished
   res.on('finish', () => {
     const duration = Date.now() - start;
-    
-    logger.info({
+
+    logger.info('Response finished', {
       type: 'response',
       requestId: req.id,
       method: req.method,

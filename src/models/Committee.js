@@ -25,6 +25,12 @@ const committeeSchema = new mongoose.Schema({
     ref: 'Organization',
     required: true
   },
+  startDate: {
+    type: Date
+  },
+  endDate: {
+    type: Date
+  },
   // Audit fields
   createdAt: {
     type: Date,
@@ -52,7 +58,7 @@ committeeSchema.index({ organizationId: 1, isDeleted: 1 });
 committeeSchema.index({ name: 1, organizationId: 1 });
 
 // Middleware to update updatedAt
-committeeSchema.pre('save', function(next) {
+committeeSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });

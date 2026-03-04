@@ -35,7 +35,7 @@ if (missingEnvVars.length > 0) {
 // Connect to database and start server
 connectDatabase()
   .then(() => {
-    const server = app.listen(PORT, () => {
+    const server = app.listen(PORT, '0.0.0.0', () => {
       logger.info(`Server started on port ${PORT}`, {
         port: PORT,
         environment: process.env.NODE_ENV || 'development'
@@ -45,10 +45,10 @@ connectDatabase()
     // Graceful shutdown handling
     const gracefulShutdown = async (signal) => {
       logger.info(`${signal} received, starting graceful shutdown`);
-      
+
       server.close(async () => {
         logger.info('HTTP server closed');
-        
+
         // Close database connection
         const mongoose = require('mongoose');
         try {

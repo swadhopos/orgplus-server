@@ -5,9 +5,6 @@ const { authenticateToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/authorize');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
 
-// All routes require authentication
-router.use(authenticateToken);
-
 // All routes require admin or systemAdmin role
 router.use(requireRole('systemAdmin', 'admin'));
 
@@ -26,11 +23,17 @@ router.get('/:id', meetingController.getMeeting);
 // Update meeting
 router.put('/:id', meetingController.updateMeeting);
 
+// Delete meeting
+router.delete('/:id', meetingController.deleteMeeting);
+
 // Attendance routes
 router.post('/:meetingId/attendance', meetingController.recordAttendance);
 router.get('/:meetingId/attendance', meetingController.listAttendance);
 
 // Update attendance (separate route for updating specific attendance record)
 router.put('/attendance/:id', meetingController.updateAttendance);
+
+// Finalize attendance
+router.post('/:meetingId/finalize-attendance', meetingController.finalizeAttendance);
 
 module.exports = router;

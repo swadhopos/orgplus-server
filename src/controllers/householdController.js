@@ -1,34 +1,35 @@
 const Household = require('../models/Household');
 const Organization = require('../models/Organization');
+const Member = require('../models/Member');
 const { admin } = require('../config/firebase');
 const { AppError, NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
-const mongoose = require('mongoose');
 
 /**
- * Create a new household with optional user creation
+ * Create a new household with optional user creation and automatic Head Member creation
  */
 exports.createHousehold = async (req, res, next) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
   try {
     const { orgId } = req.params;
     const {
+      houseName,
       houseNumber,
-      block,
-      floor,
-      ownerName,
-      contactPhone,
-      contactEmail,
-      occupancyStatus,
+      addressLine1,
+      addressLine2,
+      postalCode,
+      primaryMobile,
+      status,
       email,
-      password
+      password,
+      // Member fields for the Head
+      headFullName,
+      headGender,
+      headMaritalStatus
     } = req.body;
 
     // Validate required fields
-    if (!houseNumber || !ownerName || !contactPhone) {
-      throw new ValidationError('Missing required fields: houseNumber, ownerName, contactPhone');
+    if (!houseName) {
+      throw new ValidationError('Missing required fields: houseName');
     }
 
     // Verify organization exists
@@ -50,12 +51,7 @@ exports.createHousehold = async (req, res, next) => {
         });
 
         userId = userRecord.uid;
-
-        // Note: Custom claims will be set after household is created
-        userInfo = {
-          userId: userRecord.uid,
-          email: userRecord.email
-        };
+        userInfo = { userId: userRecord.uid, email: userRecord.email };
 
         logger.info('Firebase user created for household', {
           userId: userRecord.uid,
@@ -63,7 +59,6 @@ exports.createHousehold = async (req, res, next) => {
           organizationId: orgId
         });
       } catch (error) {
-        await session.abortTransaction();
         if (error.code === 'auth/email-already-exists') {
           throw new ValidationError('Email already exists');
         }
@@ -71,23 +66,44 @@ exports.createHousehold = async (req, res, next) => {
       }
     }
 
-    // Create household
+    // 1. Create household (without headMemberId initially)
     const household = new Household({
+      houseName,
       houseNumber,
-      block,
-      floor,
-      ownerName,
-      contactPhone,
-      contactEmail,
-      occupancyStatus: occupancyStatus || 'owner-occupied',
-      userId,
+      addressLine1,
+      addressLine2,
+      postalCode,
+      primaryMobile,
+      status: status || 'active',
       organizationId: orgId,
       createdByUserId: req.user.uid
     });
 
-    await household.save({ session });
+    await household.save();
 
-    // Set custom claims for the created user
+    // 2. Automatically create Head Member if details provided
+    let headMember = null;
+    if (headFullName && headGender && headMaritalStatus) {
+      headMember = new Member({
+        fullName: headFullName,
+        gender: headGender,
+        maritalStatus: headMaritalStatus,
+        mobileNumber: primaryMobile,
+        email: email,
+        currentHouseholdId: household._id,
+        status: 'active',
+        organizationId: orgId,
+        createdByUserId: req.user.uid
+      });
+
+      await headMember.save();
+
+      // Update household with head member
+      household.headMemberId = headMember._id;
+      await household.save();
+    }
+
+    // 3. Set custom claims for the created user
     if (userId) {
       await admin.auth().setCustomUserClaims(userId, {
         role: 'orgMember',
@@ -96,10 +112,9 @@ exports.createHousehold = async (req, res, next) => {
       });
     }
 
-    await session.commitTransaction();
-
-    logger.info('Household created', {
+    logger.info('Household and Head Member created', {
       householdId: household._id,
+      memberId: headMember ? headMember._id : null,
       organizationId: orgId,
       userId: userId,
       createdBy: req.user.uid
@@ -109,14 +124,12 @@ exports.createHousehold = async (req, res, next) => {
       success: true,
       data: {
         household,
+        headMember,
         user: userInfo
       }
     });
   } catch (error) {
-    await session.abortTransaction();
     next(error);
-  } finally {
-    session.endSession();
   }
 };
 
@@ -126,13 +139,28 @@ exports.createHousehold = async (req, res, next) => {
 exports.listHouseholds = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { page = 1, limit = 10 } = req.query;
+    const { page = 1, limit = 10, search } = req.query;
     const skip = (page - 1) * limit;
 
     // Apply tenant filter
     const filter = { organizationId: orgId, isDeleted: false, ...req.tenantFilter };
 
+    // Search filter
+    if (search) {
+      filter.$or = [
+        { houseName: { $regex: search, $options: 'i' } },
+        { houseNumber: { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Convert tenant filter householdId mapping to _id for Household queries
+    if (filter.householdId) {
+      filter._id = filter.householdId;
+      delete filter.householdId;
+    }
+
     const households = await Household.find(filter)
+      .populate('headMemberId', 'fullName')
       .skip(skip)
       .limit(parseInt(limit))
       .sort({ createdAt: -1 });
@@ -164,7 +192,11 @@ exports.getHousehold = async (req, res, next) => {
     // Apply tenant filter
     const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
 
-    const household = await Household.findOne(filter);
+    // Remove householdId from filter if present to avoid schema strictQuery warnings,
+    // since we already filter by _id = id
+    delete filter.householdId;
+
+    const household = await Household.findOne(filter).populate('headMemberId', 'fullName');
 
     if (!household) {
       throw new NotFoundError('Household not found');
@@ -186,17 +218,19 @@ exports.updateHousehold = async (req, res, next) => {
   try {
     const { orgId, id } = req.params;
     const {
+      houseName,
       houseNumber,
-      block,
-      floor,
-      ownerName,
-      contactPhone,
-      contactEmail,
-      occupancyStatus
+      addressLine1,
+      addressLine2,
+      postalCode,
+      primaryMobile,
+      status
     } = req.body;
 
     // Apply tenant filter
     const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
+
+    delete filter.householdId;
 
     const household = await Household.findOne(filter);
 
@@ -205,13 +239,13 @@ exports.updateHousehold = async (req, res, next) => {
     }
 
     // Update fields
-    if (houseNumber) household.houseNumber = houseNumber;
-    if (block !== undefined) household.block = block;
-    if (floor !== undefined) household.floor = floor;
-    if (ownerName) household.ownerName = ownerName;
-    if (contactPhone) household.contactPhone = contactPhone;
-    if (contactEmail !== undefined) household.contactEmail = contactEmail;
-    if (occupancyStatus) household.occupancyStatus = occupancyStatus;
+    if (houseName) household.houseName = houseName;
+    if (houseNumber !== undefined) household.houseNumber = houseNumber;
+    if (addressLine1 !== undefined) household.addressLine1 = addressLine1;
+    if (addressLine2 !== undefined) household.addressLine2 = addressLine2;
+    if (postalCode !== undefined) household.postalCode = postalCode;
+    if (primaryMobile !== undefined) household.primaryMobile = primaryMobile;
+    if (status) household.status = status;
 
     await household.save();
 
@@ -239,6 +273,8 @@ exports.deleteHousehold = async (req, res, next) => {
 
     // Apply tenant filter
     const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
+
+    delete filter.householdId;
 
     const household = await Household.findOne(filter);
 
