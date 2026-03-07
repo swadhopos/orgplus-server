@@ -16,6 +16,7 @@ const deathRegisterRoutes = require('./routes/deathRegisterRoutes');
 const staffRoutes = require('./routes/staff');
 const categoryRoutes = require('./routes/categories');
 const ledgerRoutes = require('./routes/ledger');
+const eventRoutes = require('./routes/events');
 
 const app = express();
 
@@ -106,6 +107,12 @@ app.use('/api/organizations/:orgId/ledgers',
   authenticateToken,
   requireOrgAccess,
   ledgerRoutes
+);
+
+app.use('/api/organizations/:orgId/events',
+  authenticateToken,
+  requireOrgAccess,
+  eventRoutes
 );
 
 // Only mount meetings on the organization root

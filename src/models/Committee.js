@@ -31,6 +31,13 @@ const committeeSchema = new mongoose.Schema({
   endDate: {
     type: Date
   },
+  // Optional: links this committee to a specific event
+  eventId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Event',
+    default: null,
+    index: true
+  },
   // Audit fields
   createdAt: {
     type: Date,
