@@ -4,6 +4,7 @@ const Member = require('../models/Member');
 const { admin } = require('../config/firebase');
 const { AppError, NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
+const { autoAssignPlansToNewTarget } = require('../services/subscriptionService');
 
 /**
  * Create a new household with optional user creation and automatic Head Member creation
@@ -32,11 +33,18 @@ exports.createHousehold = async (req, res, next) => {
       throw new ValidationError('Missing required fields: houseName');
     }
 
-    // Verify organization exists
-    const organization = await Organization.findOne({ _id: orgId, isDeleted: false });
+    // Verify organization exists and atomically increment houseCounter
+    const organization = await Organization.findOneAndUpdate(
+      { _id: orgId, isDeleted: false },
+      { $inc: { houseCounter: 1 } },
+      { new: true }
+    );
+
     if (!organization) {
       throw new NotFoundError('Organization not found');
     }
+
+    const generatedHouseNumber = `${organization.orgNumber}-${organization.houseCounter}`;
 
     let userId = null;
     let userInfo = null;
@@ -69,7 +77,8 @@ exports.createHousehold = async (req, res, next) => {
     // 1. Create household (without headMemberId initially)
     const household = new Household({
       houseName,
-      houseNumber,
+      houseNumber: generatedHouseNumber,
+      memberCounter: 0,
       addressLine1,
       addressLine2,
       postalCode,
@@ -81,15 +90,28 @@ exports.createHousehold = async (req, res, next) => {
 
     await household.save();
 
+    // Trigger auto-assignment for Household
+    autoAssignPlansToNewTarget(orgId, household._id, 'HOUSEHOLD', req.user.uid).catch(err => 
+        console.error('Failed auto-assigning plans to new household:', err)
+    );
+
     // 2. Automatically create Head Member if details provided
     let headMember = null;
     if (headFullName && headGender && headMaritalStatus) {
+
+      // Increment household member counter for the head
+      household.memberCounter += 1;
+      const headMemberNumber = `${generatedHouseNumber}-${household.memberCounter}`;
+
       headMember = new Member({
+        memberSequence: household.memberCounter, // To keep the schema happy if it needs a number
+        memberNumber: headMemberNumber,
         fullName: headFullName,
         gender: headGender,
         maritalStatus: headMaritalStatus,
         mobileNumber: primaryMobile,
         email: email,
+        userId: userId,
         currentHouseholdId: household._id,
         status: 'active',
         organizationId: orgId,
@@ -246,6 +268,7 @@ exports.updateHousehold = async (req, res, next) => {
     if (postalCode !== undefined) household.postalCode = postalCode;
     if (primaryMobile !== undefined) household.primaryMobile = primaryMobile;
     if (status) household.status = status;
+    if (req.body.capacityOverrides !== undefined) household.capacityOverrides = req.body.capacityOverrides;
 
     await household.save();
 

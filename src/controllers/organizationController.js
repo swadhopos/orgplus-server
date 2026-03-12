@@ -2,6 +2,8 @@ const Organization = require('../models/Organization');
 const { admin } = require('../config/firebase');
 const { AppError, NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
+const Counter = require('../models/Counter');
+const { getNextAlphaId } = require('../utils/idGenerator');
 
 /**
  * Create a new organization (systemAdmin only)
@@ -26,6 +28,26 @@ exports.createOrganization = async (req, res, next) => {
       throw new ValidationError('Organization with this name already exists');
     }
 
+    // Generate Organization ID (orgNumber)
+    const GLOBAL_ORG_COUNTER_ID = 'global_org_seq';
+    let counter = await Counter.findOne({ _id: GLOBAL_ORG_COUNTER_ID });
+
+    let currentId = null;
+    if (counter) {
+      currentId = counter.stringValue;
+    }
+
+    const nextOrgNumber = getNextAlphaId(currentId);
+
+    // Update or create the global counter
+    await Counter.findOneAndUpdate(
+      { _id: GLOBAL_ORG_COUNTER_ID },
+      {
+        $set: { stringValue: nextOrgNumber }
+      },
+      { upsert: true, new: true }
+    );
+
     // Create organization
     const organization = new Organization({
       name,
@@ -44,6 +66,9 @@ exports.createOrganization = async (req, res, next) => {
       website,
       description,
       status: status || 'active',
+      orgNumber: nextOrgNumber,
+      houseCounter: 0,
+      independentMemberCounter: 0,
       createdByUserId: req.user.uid
     });
 
@@ -299,3 +324,7 @@ exports.createOrgAdmin = async (req, res, next) => {
     }
   }
 };
+
+
+// End of controller
+

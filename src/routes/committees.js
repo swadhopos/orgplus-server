@@ -32,4 +32,7 @@ router.get('/:committeeId/members', committeeController.listCommitteeMembers);
 router.put('/:committeeId/members/:id', committeeController.updateCommitteeMember);
 router.delete('/:committeeId/members/:id', committeeController.removeCommitteeMember);
 
+// Create or link a Firebase login for a privileged committee officer (president/vp/secretary/treasurer)
+router.post('/:committeeId/members/:memberId/create-login', committeeController.createMemberLogin);
+
 module.exports = router;

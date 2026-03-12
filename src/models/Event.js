@@ -47,6 +47,14 @@ const eventSchema = new mongoose.Schema({
         },
         default: 'upcoming'
     },
+    visibility: {
+        type: String,
+        enum: {
+            values: ['public', 'internal'],
+            message: '{VALUE} is not a valid visibility'
+        },
+        default: 'public'
+    },
 
     // ── Schedule ─────────────────────────────────────────────────────────────
     startDate: {
@@ -55,6 +63,14 @@ const eventSchema = new mongoose.Schema({
     },
     endDate: {
         type: Date,
+        default: null
+    },
+    startTime: {
+        type: String, // e.g. '09:00'
+        default: null
+    },
+    endTime: {
+        type: String, // e.g. '17:00'
         default: null
     },
     location: {

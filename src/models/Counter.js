@@ -9,10 +9,14 @@ const counterSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    stringValue: {
+        type: String,
+        default: 'AA'
+    },
     organizationId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Organization',
-        required: true
+        required: false // Made optional so we can use a global Counter
     }
 });
 

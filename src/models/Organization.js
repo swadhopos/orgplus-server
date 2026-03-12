@@ -23,6 +23,19 @@ const organizationSchema = new mongoose.Schema({
     sparse: true,
     maxlength: [100, 'Registration number cannot exceed 100 characters']
   },
+  orgNumber: {
+    type: String,
+    unique: true,
+    sparse: true
+  },
+  houseCounter: {
+    type: Number,
+    default: 0
+  },
+  independentMemberCounter: {
+    type: Number,
+    default: 0
+  },
   establishedDate: {
     type: Date,
     default: null

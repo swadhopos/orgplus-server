@@ -15,6 +15,14 @@ const meetingSchema = new mongoose.Schema({
     type: Date,
     required: true
   },
+  startTime: {
+    type: String, // 'HH:mm' format
+    default: null
+  },
+  endTime: {
+    type: String, // 'HH:mm' format
+    default: null
+  },
   location: {
     type: String,
     required: true,
@@ -51,6 +59,11 @@ const meetingSchema = new mongoose.Schema({
     type: String,
     enum: ['scheduled', 'completed', 'cancelled'],
     default: 'scheduled'
+  },
+  visibility: {
+    type: String,
+    enum: ['public', 'internal'],
+    default: 'internal'
   },
   organizationId: {
     type: mongoose.Schema.Types.ObjectId,

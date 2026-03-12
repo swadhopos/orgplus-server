@@ -36,7 +36,7 @@ const memberSchema = new mongoose.Schema({
   currentHouseholdId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Household',
-    required: true
+    required: false
   },
 
   // Relationship graph (nullable until verified)
@@ -75,6 +75,15 @@ const memberSchema = new mongoose.Schema({
     trim: true
   },
 
+  // Firebase Auth link — set when a committee officer login is created for this member.
+  // Only president / vice-president / secretary / treasurer will have this populated.
+  userId: {
+    type: String,      // Firebase UID (e.g. "f8a2kj...")
+    sparse: true,
+    index: true,
+    default: null
+  },
+
   // Work / Education
   occupation: String,
   isWorkingAbroad: {
@@ -82,6 +91,24 @@ const memberSchema = new mongoose.Schema({
     default: false
   },
   abroadCountry: String,
+
+  // Capacity Overrides (Pricing)
+  capacityOverrides: [{
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CapacityCategory',
+      required: true
+    },
+    tierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: false // Optional if using customAmount
+    },
+    customAmount: {
+      type: Number,
+      required: false,
+      min: 0
+    }
+  }],
 
   // Lifecycle
   status: {
@@ -102,6 +129,17 @@ const memberSchema = new mongoose.Schema({
   },
   deathDate: Date,
   deathCause: String,
+
+  // Medical Info
+  medicalInfo: {
+    bloodGroup: {
+      type: String,
+      enum: ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-', 'Unknown']
+    },
+    allergies: [String],
+    medications: [String],
+    specialNeeds: String
+  },
 
   // Verification
   isRelationshipVerified: {

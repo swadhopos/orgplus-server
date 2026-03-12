@@ -76,7 +76,7 @@ const transactionSchema = new mongoose.Schema({
     type: {
         type: String,
         enum: {
-            values: ['income', 'expense'],
+            values: ['income', 'expense', 'invoice'], // added 'invoice' for unpaid subscription dues
             message: '{VALUE} is not a valid transaction type'
         },
         required: [true, 'Transaction type is required']
@@ -84,7 +84,7 @@ const transactionSchema = new mongoose.Schema({
     amount: {
         type: Number,
         required: [true, 'Amount is required'],
-        min: [0.01, 'Amount must be greater than 0']
+        min: [0, 'Amount must be greater than or equal to 0']
     },
     currency: {
         type: String,
@@ -108,10 +108,16 @@ const transactionSchema = new mongoose.Schema({
     status: {
         type: String,
         enum: {
-            values: ['pending', 'completed', 'cancelled', 'reversed', 'voided'],
+            values: ['pending', 'completed', 'cancelled', 'reversed', 'voided', 'unpaid', 'partially_paid'],
             message: '{VALUE} is not a valid status'
         },
         default: 'completed'
+    },
+    
+    // ── Future-Proofing for Payment Gateway ────────────────────────
+    externalTransactionId: {
+        type: String,
+        default: null
     },
 
     // ── Void details ───────────────────────────────────────────────
@@ -128,6 +134,15 @@ const transactionSchema = new mongoose.Schema({
     },
     voidedByUserId: {
         type: String,
+        default: null
+    },
+
+    // ── Period tracking ───────────────────────────────────────────
+    // Optional — for recurring subscriptions (e.g., '2024-03', '2024-W12')
+    billingPeriod: {
+        type: String,
+        trim: true,
+        index: true,
         default: null
     },
 
@@ -160,6 +175,12 @@ transactionSchema.index({ organizationId: 1, type: 1 });
 transactionSchema.index({ organizationId: 1, categoryId: 1 });
 transactionSchema.index({ organizationId: 1, memberId: 1 });
 transactionSchema.index({ organizationId: 1, householdId: 1 });
+transactionSchema.index({ 
+    sourceId: 1, 
+    organizationId: 1, 
+    billingPeriod: 1, 
+    'audit.isDeleted': 1 
+});
 transactionSchema.index({ 'audit.isDeleted': 1 });
 
 // ── Middleware ─────────────────────────────────────────────────────

@@ -14,9 +14,15 @@ const committeeRoutes = require('./routes/committees');
 const meetingRoutes = require('./routes/meetings');
 const deathRegisterRoutes = require('./routes/deathRegisterRoutes');
 const staffRoutes = require('./routes/staff');
-const categoryRoutes = require('./routes/categories');
 const ledgerRoutes = require('./routes/ledger');
 const eventRoutes = require('./routes/events');
+const calendarRoutes = require('./routes/calendarRoutes');
+const marriageNocRoutes = require('./routes/marriageNoc');
+const marriageCertificateRoutes = require('./routes/marriageCertificate');
+const orgSettingsRoutes = require('./routes/orgSettings');
+const feeRoutes = require('./routes/fees');
+const subscriptionRoutes = require('./routes/subscriptions');
+const categoryRoutes = require('./routes/categories');
 
 const app = express();
 
@@ -97,12 +103,6 @@ app.use('/api/organizations/:orgId/staff',
   staffRoutes
 );
 
-app.use('/api/organizations/:orgId/categories',
-  authenticateToken,
-  requireOrgAccess,
-  categoryRoutes
-);
-
 app.use('/api/organizations/:orgId/ledgers',
   authenticateToken,
   requireOrgAccess,
@@ -113,6 +113,48 @@ app.use('/api/organizations/:orgId/events',
   authenticateToken,
   requireOrgAccess,
   eventRoutes
+);
+
+app.use('/api/organizations/:orgId/calendar',
+  authenticateToken,
+  requireOrgAccess,
+  calendarRoutes
+);
+
+app.use('/api/organizations/:orgId/certificates/noc',
+  authenticateToken,
+  requireOrgAccess,
+  marriageNocRoutes
+);
+
+app.use('/api/organizations/:orgId/certificates/marriage',
+  authenticateToken,
+  requireOrgAccess,
+  marriageCertificateRoutes
+);
+
+app.use('/api/organizations/:orgId/settings',
+  authenticateToken,
+  requireOrgAccess,
+  orgSettingsRoutes
+);
+
+app.use('/api/organizations/:orgId/fees',
+  authenticateToken,
+  requireOrgAccess,
+  feeRoutes
+);
+
+app.use('/api/organizations/:orgId/subscriptions',
+  authenticateToken,
+  requireOrgAccess,
+  subscriptionRoutes
+);
+
+app.use('/api/organizations/:orgId/categories',
+  authenticateToken,
+  requireOrgAccess,
+  categoryRoutes
 );
 
 // Only mount meetings on the organization root

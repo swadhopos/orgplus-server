@@ -1,8 +1,11 @@
+const mongoose = require('mongoose');
 const Member = require('../models/Member');
 const Household = require('../models/Household');
+const Organization = require('../models/Organization');
 const Counter = require('../models/Counter');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
+const { autoAssignPlansToNewTarget } = require('../services/subscriptionService');
 
 /**
  * Create a new member with relationship validation
@@ -26,19 +29,34 @@ exports.createMember = async (req, res, next) => {
     } = req.body;
 
     // Validate required fields
-    if (!fullName || !gender || !currentHouseholdId || !maritalStatus) {
-      throw new ValidationError('Missing required fields');
+    if (!fullName || !gender || !maritalStatus) {
+      throw new ValidationError('Missing required fields: fullName, gender, maritalStatus');
     }
 
-    // Verify household exists in same organization
-    const household = await Household.findOne({
-      _id: currentHouseholdId,
-      organizationId: orgId,
-      isDeleted: false
-    });
+    let household = null;
+    let organization = null;
 
-    if (!household) {
-      throw new NotFoundError('Household not found');
+    if (currentHouseholdId) {
+      // Verify household exists in same organization
+      household = await Household.findOne({
+        _id: currentHouseholdId,
+        organizationId: orgId,
+        isDeleted: false
+      });
+
+      if (!household) {
+        throw new NotFoundError('Household not found');
+      }
+    } else {
+      // Verify organization exists (if no household)
+      organization = await Organization.findOne({
+        _id: orgId,
+        isDeleted: false
+      });
+
+      if (!organization) {
+        throw new NotFoundError('Organization not found');
+      }
     }
 
     // Verify relationship references exist in same organization
@@ -75,18 +93,34 @@ exports.createMember = async (req, res, next) => {
       }
     }
 
-    // Atomically increment member counter for this organization
-    const counterId = `member_seq_${orgId}`;
-    let counter = await Counter.findOneAndUpdate(
-      { _id: counterId, organizationId: orgId },
-      { $inc: { sequenceValue: 1 } },
-      { new: true, upsert: true }
-    );
+    let memberNumber = '';
+    let nextSequence = 0;
 
-    // If counter just created (sequenceValue is 1), let's ensure it starts at 1001 for member numbers
-    // Alternatively, just add 1000 to whatever comes out
-    const nextSequence = 1000 + counter.sequenceValue;
-    const memberNumber = `MEM-${nextSequence}`;
+    if (currentHouseholdId) {
+      // Atomically increment member counter for this household
+      const updatedHousehold = await Household.findOneAndUpdate(
+        { _id: currentHouseholdId, organizationId: orgId },
+        { $inc: { memberCounter: 1 } },
+        { new: true }
+      );
+
+      if (!updatedHousehold) throw new NotFoundError('Household not found for member counter increment');
+
+      nextSequence = updatedHousehold.memberCounter;
+      memberNumber = `${updatedHousehold.houseNumber}-${nextSequence}`;
+    } else {
+      // Atomically increment independent member counter for this organization
+      const updatedOrg = await Organization.findOneAndUpdate(
+        { _id: orgId },
+        { $inc: { independentMemberCounter: 1 } },
+        { new: true }
+      );
+
+      if (!updatedOrg) throw new NotFoundError('Organization not found for independent member counter increment');
+
+      nextSequence = updatedOrg.independentMemberCounter;
+      memberNumber = `${updatedOrg.orgNumber}-0-${nextSequence}`;
+    }
 
     // Create member
     const member = new Member({
@@ -110,6 +144,11 @@ exports.createMember = async (req, res, next) => {
 
     await member.save();
 
+    // Trigger auto-assignment for Member
+    autoAssignPlansToNewTarget(orgId, member._id, 'MEMBER', req.user.uid).catch(err => 
+        console.error('Failed auto-assigning plans to new member:', err)
+    );
+
     logger.info('Member created', {
       memberId: member._id,
       organizationId: orgId,
@@ -132,21 +171,54 @@ exports.createMember = async (req, res, next) => {
 exports.listMembers = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { page = 1, limit = 10, currentHouseholdId } = req.query;
+    const { page = 1, limit = 10, currentHouseholdId, search } = req.query;
     const skip = (page - 1) * limit;
 
     // Apply tenant filter
-    const filter = { organizationId: orgId, isDeleted: false, ...req.tenantFilter };
+    const filter = { 
+      organizationId: new mongoose.Types.ObjectId(orgId), 
+      isDeleted: false, 
+      ...req.tenantFilter 
+    };
+
+    logger.info('LIST_MEMBERS_FILTER_DEBUG', {
+      requestId: req.id,
+      orgId,
+      filter,
+      tenantFilter: req.tenantFilter,
+      user: {
+        id: req.user?.id,
+        role: req.user?.role,
+        orgId: req.user?.orgId
+      }
+    });
 
     // Convert tenant filter householdId mapping if it exists
     if (filter.householdId) {
-      filter.currentHouseholdId = filter.householdId;
+      filter.currentHouseholdId = new mongoose.Types.ObjectId(filter.householdId);
       delete filter.householdId;
     }
 
     // Optional household filter
     if (currentHouseholdId) {
-      filter.currentHouseholdId = currentHouseholdId;
+      filter.currentHouseholdId = new mongoose.Types.ObjectId(currentHouseholdId);
+    }
+
+    // Cast IDs in tenant filter if they exist as strings
+    if (filter.organizationId && typeof filter.organizationId === 'string') {
+      filter.organizationId = new mongoose.Types.ObjectId(filter.organizationId);
+    }
+
+    if (filter._id && typeof filter._id === 'string') {
+      filter._id = new mongoose.Types.ObjectId(filter._id);
+    }
+
+    // Search filter — matches fullName or memberNumber
+    if (search) {
+      filter.$or = [
+        { fullName: { $regex: search, $options: 'i' } },
+        { memberNumber: { $regex: search, $options: 'i' } }
+      ];
     }
 
     const members = await Member.find(filter)
@@ -186,11 +258,16 @@ exports.getMember = async (req, res, next) => {
       .populate('currentHouseholdId', 'houseName houseNumber')
       .populate('fatherId', 'fullName')
       .populate('motherId', 'fullName')
-      .populate('spouseId', 'fullName');
+      .populate('spouseId', 'fullName')
+      .lean();
 
     if (!member) {
       throw new NotFoundError('Member not found');
     }
+
+    // Check if member is a household head
+    const headedHousehold = await Household.findOne({ headMemberId: id, isDeleted: false });
+    member.isHouseholdHead = !!headedHousehold;
 
     res.json({
       success: true,
@@ -304,6 +381,7 @@ exports.updateMember = async (req, res, next) => {
     if (fatherId !== undefined) member.fatherId = fatherId;
     if (motherId !== undefined) member.motherId = motherId;
     if (spouseId !== undefined) member.spouseId = spouseId;
+    if (req.body.capacityOverrides !== undefined) member.capacityOverrides = req.body.capacityOverrides;
 
     await member.save();
 

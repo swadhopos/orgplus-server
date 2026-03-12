@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const organizationController = require('../controllers/organizationController');
+const capacityCategoryController = require('../controllers/capacityCategoryController');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/authorize');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
@@ -50,6 +51,30 @@ router.post(
   '/:orgId/admins',
   requireRole('systemAdmin'),
   organizationController.createOrgAdmin
+);
+
+// Capacity Categories
+router.get(
+  '/:orgId/capacity-categories',
+  capacityCategoryController.getCapacityCategories
+);
+
+router.post(
+  '/:orgId/capacity-categories',
+  requireRole('admin', 'systemAdmin'),
+  capacityCategoryController.addCapacityCategory
+);
+
+router.put(
+  '/:orgId/capacity-categories/:catId',
+  requireRole('admin', 'systemAdmin'),
+  capacityCategoryController.updateCapacityCategory
+);
+
+router.delete(
+  '/:orgId/capacity-categories/:catId',
+  requireRole('admin', 'systemAdmin'),
+  capacityCategoryController.deleteCapacityCategory
 );
 
 module.exports = router;

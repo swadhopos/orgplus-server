@@ -26,6 +26,10 @@ const householdSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  memberCounter: {
+    type: Number,
+    default: 0
+  },
   addressLine1: {
     type: String,
     trim: true
@@ -50,6 +54,24 @@ const householdSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+
+  // Capacity Overrides (Pricing)
+  capacityOverrides: [{
+    categoryId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'CapacityCategory',
+      required: true
+    },
+    tierId: {
+      type: mongoose.Schema.Types.ObjectId,
+      required: false // Optional if using customAmount
+    },
+    customAmount: {
+      type: Number,
+      required: false,
+      min: 0
+    }
+  }],
 
   // Lifecycle
   status: {

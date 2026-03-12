@@ -4,6 +4,10 @@ const Member = require('../models/Member');
 const Meeting = require('../models/Meeting');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
+const { createUser, setCustomClaims, getUserByEmail, getUserByUid } = require('../config/firebase');
+
+// Roles that are entitled to a login in the org app
+const PRIVILEGED_ROLES = ['president', 'vice-president', 'secretary', 'treasurer'];
 
 /**
  * Create a new committee
@@ -85,7 +89,7 @@ exports.getCommittee = async (req, res, next) => {
 
     const [members, meetings] = await Promise.all([
       CommitteeMember.find({ committeeId: id, organizationId: orgId })
-        .populate('memberId', 'fullName memberNumber currentHouseholdId')
+        .populate('memberId', 'fullName memberNumber currentHouseholdId userId email')
         .sort({ role: 1 }),
       Meeting.find({ committeeId: id, organizationId: orgId })
     ]);
@@ -214,7 +218,7 @@ exports.listCommitteeMembers = async (req, res, next) => {
 
     const [committeeMembers, total] = await Promise.all([
       CommitteeMember.find(filter)
-        .populate('memberId', 'fullName memberNumber currentHouseholdId')
+        .populate('memberId', 'fullName memberNumber currentHouseholdId userId email')
         .sort({ role: 1, startDate: -1 })
         .skip(skip)
         .limit(parseInt(limit)),
@@ -265,7 +269,7 @@ exports.updateCommitteeMember = async (req, res, next) => {
 };
 
 /**
- * Remove committee member
+ * Remove committee member — strips Firebase memberId claim if they had a privileged role.
  */
 exports.removeCommitteeMember = async (req, res, next) => {
   try {
@@ -276,11 +280,140 @@ exports.removeCommitteeMember = async (req, res, next) => {
 
     if (!committeeMember) throw new NotFoundError('Committee member not found');
 
+    // If this was a privileged role, strip the memberId claim from their Firebase token
+    if (!committeeMember.isExternal && PRIVILEGED_ROLES.includes(committeeMember.role)) {
+      const member = await Member.findById(committeeMember.memberId);
+      if (member?.userId) {
+        try {
+          const firebaseUser = await getUserByUid(member.userId);
+          if (firebaseUser) {
+            const existingClaims = firebaseUser.customClaims || {};
+            const { memberId: _removed, ...strippedClaims } = existingClaims;
+            // If this was a committee_member account (not a household head), disable it
+            if (existingClaims.role === 'committee_member') {
+              await setCustomClaims(member.userId, { ...strippedClaims, role: 'disabled' });
+            } else {
+              // Household head — just remove the memberId claim
+              await setCustomClaims(member.userId, strippedClaims);
+            }
+          }
+        } catch (claimErr) {
+          logger.warn('Could not strip Firebase claims on member removal', { error: claimErr.message });
+        }
+      }
+    }
+
     await committeeMember.deleteOne();
 
     logger.info('Committee member removed', { committeeMemberId: id, committeeId, organizationId: orgId, deletedBy: req.user.uid });
 
     res.status(204).send();
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * POST /:committeeId/members/:memberId/create-login
+ *
+ * Creates (or links) a Firebase login for a privileged committee officer.
+ *
+ * Two cases:
+ *   A) Member already has a userId (household head with existing login)
+ *      → Just patch memberId into their existing Firebase custom claims.
+ *
+ *   B) Member has no userId (never had a login)
+ *      → Create a new Firebase account with the supplied email + password,
+ *        set custom claims, write userId back to the Member document.
+ *
+ * Body: { email, password, role }
+ *   - email + password required only for case B
+ *   - role required in both cases (must be a PRIVILEGED_ROLE)
+ */
+exports.createMemberLogin = async (req, res, next) => {
+  try {
+    const { orgId, committeeId, memberId } = req.params;
+    const { email, password, role } = req.body;
+
+    // ── Guard: only privileged roles get a login
+    if (!PRIVILEGED_ROLES.includes(role)) {
+      return res.status(400).json({
+        error: `Only ${PRIVILEGED_ROLES.join(', ')} roles are entitled to a login. Regular committee members cannot log in.`
+      });
+    }
+
+    // ── Fetch the member
+    const member = await Member.findOne({ _id: memberId, organizationId: orgId, isDeleted: false });
+    if (!member) throw new NotFoundError('Member not found');
+
+    let firebaseUid;
+
+    if (member.userId) {
+      // ── CASE A: Member already has a Firebase account (e.g. household head)
+      // Patch memberId into their existing claims without overwriting role/householdId
+      const firebaseUser = await getUserByUid(member.userId);
+      if (!firebaseUser) {
+        return res.status(400).json({ error: 'Member has a stored userId but no matching Firebase account. Please contact support.' });
+      }
+
+      const existingClaims = firebaseUser.customClaims || {};
+      await setCustomClaims(member.userId, {
+        ...existingClaims,
+        memberId: member._id.toString()  // ← add the bridge
+      });
+
+      firebaseUid = member.userId;
+
+      logger.info('Patched memberId claim onto existing Firebase user', {
+        uid: firebaseUid, memberId: member._id, orgId
+      });
+
+    } else {
+      // ── CASE B: No Firebase account — create one
+      if (!email || !password) {
+        return res.status(400).json({ error: 'email and password are required to create a new login' });
+      }
+
+      // Reject if email already exists in Firebase
+      const existingByEmail = await getUserByEmail(email);
+      if (existingByEmail) {
+        return res.status(409).json({
+          error: 'A Firebase account with this email already exists. If this person is a household head, ask them to log in first so the system can link their account automatically.'
+        });
+      }
+
+      // Create the Firebase account
+      const newUser = await createUser(email, password);
+      firebaseUid = newUser.uid;
+
+      // Set custom claims
+      await setCustomClaims(firebaseUid, {
+        orgId: orgId.toString(),
+        role: 'committee_member',
+        memberId: member._id.toString()
+      });
+
+      // Write the Firebase UID back to the Member document
+      member.userId = firebaseUid;
+      if (email && !member.email) member.email = email;
+      await member.save();
+
+      logger.info('Created Firebase login for committee member', {
+        uid: firebaseUid, memberId: member._id, email, role, orgId
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Login created successfully. The member can now sign in with their credentials.',
+      data: {
+        memberId: member._id,
+        firebaseUid,
+        role,
+        hasLogin: true
+      }
+    });
+
   } catch (error) {
     next(error);
   }

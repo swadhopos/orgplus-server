@@ -1,21 +1,26 @@
 const express = require('express');
-const router = express.Router();
+const router = express.Router({ mergeParams: true });
+const { authenticateToken } = require('../middleware/auth');
 const deathRegisterController = require('../controllers/deathRegisterController');
-// const { protect, authorize } = require('../middleware/auth'); // Optionally add auth middleware
 
-router
-    .route('/')
+// All routes require authentication
+router.use(authenticateToken);
+
+router.route('/')
     .post(deathRegisterController.createDeathRecord)
     .get(deathRegisterController.getDeathRecords);
 
-router
-    .route('/:id')
+router.route('/:id')
     .get(deathRegisterController.getDeathRecordById)
     .put(deathRegisterController.updateDeathRecord)
     .delete(deathRegisterController.deleteDeathRecord);
 
-router
-    .route('/:id/verify')
-    .post(deathRegisterController.verifyDeathRecord);
+// Committee approval — casts a vote; marks verified when threshold is reached
+router.route('/:id/approve')
+    .post(deathRegisterController.approveDeath);
+
+// Admin rejection only (verified records stay verified)
+router.route('/:id/status')
+    .put(deathRegisterController.verifyDeathRecord);
 
 module.exports = router;

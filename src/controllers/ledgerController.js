@@ -223,7 +223,7 @@ exports.getLedgerSummary = async (req, res, next) => {
         let totalIncome = 0;
         let totalExpense = 0;
         summaryRows.forEach(({ _id, total }) => {
-            if (_id === 'income') totalIncome = total;
+            if (_id === 'income' || _id === 'invoice') totalIncome += total;
             if (_id === 'expense') totalExpense = total;
         });
 

@@ -1,29 +1,63 @@
 const DeathRegister = require('../models/DeathRegister');
 const Member = require('../models/Member');
+const OrgSettings = require('../models/OrgSettings');
+const CommitteeMember = require('../models/CommitteeMember');
+const { generateCertNumber } = require('../utils/certNumber');
 
-// Create a new death record
+// ─── Helper: validate approver against org approval settings ─────────────────
+
+async function validateApprover(orgId, userId, memberId) {
+    const settings = await OrgSettings.findOne({ organizationId: orgId });
+    const as = settings?.approvalSettings;
+
+    if (!as?.approverCommitteeId) {
+        throw new Error('No approval committee configured. Please set up approval settings first.');
+    }
+
+    // Find the Member record — prioritize memberId from claims, fallback to userId scan
+    let memberRecord;
+    if (memberId) {
+        memberRecord = await Member.findById(memberId);
+    } else {
+        memberRecord = await Member.findOne({ userId, organizationId: orgId });
+    }
+
+    if (!memberRecord) throw new Error('You are not a registered member of this organisation.');
+
+    const query = {
+        committeeId: as.approverCommitteeId,
+        memberId: memberRecord._id,
+        status: 'active'
+    };
+    if (as.approverRoles?.length > 0) {
+        query.role = { $in: as.approverRoles };
+    }
+
+    const cm = await CommitteeMember.findOne(query);
+    if (!cm) throw new Error('You are not authorised to approve records (not an active member of the approval committee with the required role).');
+
+    return { committeeMember: cm, member: memberRecord, requiredApprovals: as.requiredApprovals ?? 3 };
+}
+
+// @desc    Create a new death record
+// @route   POST /api/organizations/:orgId/death
 exports.createDeathRecord = async (req, res) => {
     try {
         const {
-            organizationId,
-            memberId,
-            householdId,
-            dateOfDeath,
-            causeOfDeath,
-            placeOfDeath,
-            burialPlace,
-            burialLocation,
-            reportedBy,
-            certificateNumber,
-            officialCertificateUrl,
-            notes
+            organizationId, memberId, householdId,
+            dateOfDeath, causeOfDeath, placeOfDeath,
+            burialPlace, burialLocation, reportedBy,
+            certificateNumber, officialCertificateUrl, notes
         } = req.body;
 
-        // Check if member already has a death record
+        // Guard: one death record per member
         const existingRecord = await DeathRegister.findOne({ memberId });
         if (existingRecord) {
             return res.status(400).json({ error: 'A death record already exists for this member' });
         }
+
+        // Atomically generate a unique, human-readable certificate number
+        const certNumber = await generateCertNumber(organizationId, 'DC');
 
         const newRecord = new DeathRegister({
             organizationId,
@@ -35,10 +69,11 @@ exports.createDeathRecord = async (req, res) => {
             burialPlace,
             burialLocation,
             reportedBy,
-            certificateNumber,
+            certificateNumber: certNumber,
             officialCertificateUrl,
             notes,
-            createdByUserId: req.user?._id || 'system' // Replace with proper auth user
+            status: 'pending',
+            createdByUserId: req.user?._id || 'system'
         });
 
         await newRecord.save();
@@ -49,7 +84,8 @@ exports.createDeathRecord = async (req, res) => {
     }
 };
 
-// Get all death records for an organization
+// @desc    Get all death records for an organization
+// @route   GET /api/organizations/:orgId/death
 exports.getDeathRecords = async (req, res) => {
     try {
         const { organizationId } = req.query;
@@ -61,6 +97,7 @@ exports.getDeathRecords = async (req, res) => {
         const records = await DeathRegister.find({ organizationId })
             .populate('memberId', 'fullName mobileNumber gender')
             .populate('householdId', 'name householdNumber')
+            .populate('approvals.memberId', 'fullName')
             .sort({ dateOfDeath: -1 });
 
         res.json(records);
@@ -70,79 +107,86 @@ exports.getDeathRecords = async (req, res) => {
     }
 };
 
-// Get a single death record by ID
+// @desc    Get a single death record by ID
+// @route   GET /api/organizations/:orgId/death/:id
 exports.getDeathRecordById = async (req, res) => {
     try {
         const record = await DeathRegister.findById(req.params.id)
             .populate('memberId')
             .populate('householdId');
 
-        if (!record) {
-            return res.status(404).json({ error: 'Death record not found' });
-        }
+        if (!record) return res.status(404).json({ error: 'Death record not found' });
 
         res.json(record);
     } catch (error) {
-        console.error('Error fetching death record:', error);
         res.status(500).json({ error: 'Failed to fetch death record' });
     }
 };
 
-// Update a death record
+// @desc    Update a death record (non-status fields only)
+// @route   PUT /api/organizations/:orgId/death/:id
 exports.updateDeathRecord = async (req, res) => {
     try {
-        const { id } = req.params;
-        const updateData = req.body;
-
-        // Prevent updating critical verification fields directly through this generic route
+        const updateData = { ...req.body };
         delete updateData.status;
         delete updateData.verifiedByUserId;
         delete updateData.verifiedAt;
+        delete updateData.approvals;
 
         const record = await DeathRegister.findByIdAndUpdate(
-            id,
+            req.params.id,
             { $set: updateData },
             { new: true, runValidators: true }
         );
 
-        if (!record) {
-            return res.status(404).json({ error: 'Death record not found' });
-        }
+        if (!record) return res.status(404).json({ error: 'Death record not found' });
 
         res.json(record);
     } catch (error) {
-        console.error('Error updating death record:', error);
         res.status(500).json({ error: 'Failed to update death record' });
     }
 };
 
-// Verify/Reject a death record
-exports.verifyDeathRecord = async (req, res) => {
+// @desc    Approve a death record (committee member casts vote)
+// @route   POST /api/organizations/:orgId/death/:id/approve
+exports.approveDeath = async (req, res) => {
     try {
-        const { id } = req.params;
-        const { status, notes } = req.body;
+        const { orgId, id } = req.params;
+        const { notes } = req.body;
 
-        if (!['verified', 'rejected'].includes(status)) {
-            return res.status(400).json({ error: 'Invalid status. Must be verified or rejected.' });
+        const record = await DeathRegister.findOne({ _id: id, organizationId: orgId });
+        if (!record) return res.status(404).json({ error: 'Death record not found' });
+        if (record.status !== 'pending') return res.status(400).json({ error: `Record is already ${record.status}` });
+
+        // Validate approver
+        let approverInfo;
+        try {
+            approverInfo = await validateApprover(orgId, req.user.uid, req.user.memberId);
+        } catch (e) {
+            return res.status(403).json({ error: e.message });
         }
 
-        const record = await DeathRegister.findById(id);
-        if (!record) {
-            return res.status(404).json({ error: 'Death record not found' });
-        }
+        const { committeeMember, member, requiredApprovals } = approverInfo;
 
-        if (record.status === 'verified') {
-            return res.status(400).json({ error: 'Record is already verified' });
-        }
+        // Prevent duplicate approvals
+        const alreadyApproved = record.approvals.some(
+            a => a.committeeMemberId.toString() === committeeMember._id.toString()
+        );
+        if (alreadyApproved) return res.status(400).json({ error: 'You have already approved this record' });
 
-        record.status = status;
-        if (notes) record.notes = notes;
+        record.approvals.push({
+            committeeMemberId: committeeMember._id,
+            memberId: member._id,
+            approvedAt: new Date(),
+            notes
+        });
 
-        if (status === 'verified') {
-            record.verifiedByUserId = req.user?._id || 'admin'; // Replace with proper auth user
+        if (record.approvals.length >= requiredApprovals) {
+            record.status = 'verified';
             record.verifiedAt = new Date();
+            record.verifiedByUserId = member._id.toString();
 
-            // Cascade update to Member record
+            // Cascade: mark member as deceased
             await Member.findByIdAndUpdate(record.memberId, {
                 $set: {
                     isDeceased: true,
@@ -151,39 +195,67 @@ exports.verifyDeathRecord = async (req, res) => {
                     deathCause: record.causeOfDeath
                 }
             });
-            // Optionally handle removing as Head of Household if needed
         }
 
         await record.save();
 
-        const populatedRecord = await DeathRegister.findById(id)
-            .populate('memberId')
-            .populate('householdId');
+        const populated = await DeathRegister.findById(record._id)
+            .populate('memberId', 'fullName mobileNumber gender')
+            .populate('householdId', 'name householdNumber')
+            .populate('approvals.memberId', 'fullName');
 
-        res.json(populatedRecord);
+        res.json(populated);
     } catch (error) {
-        console.error('Error verifing death record:', error);
-        res.status(500).json({ error: 'Failed to verify death record' });
+        console.error('approveDeath error:', error);
+        res.status(500).json({ error: 'Failed to record approval' });
     }
 };
 
-// Delete a death record (only if pending/rejected)
+// @desc    Reject a death record (admin action — no committee required)
+// @route   PUT /api/organizations/:orgId/death/:id/status
+exports.verifyDeathRecord = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, notes } = req.body;
+
+        if (!['rejected'].includes(status)) {
+            return res.status(400).json({ error: 'Only rejection is allowed via this endpoint. Use /approve for verification.' });
+        }
+
+        const record = await DeathRegister.findById(id);
+        if (!record) return res.status(404).json({ error: 'Death record not found' });
+
+        if (record.status === 'verified') {
+            return res.status(400).json({ error: 'Cannot reject an already verified record' });
+        }
+
+        record.status = status;
+        if (notes) record.notes = notes;
+
+        await record.save();
+
+        const populated = await DeathRegister.findById(id)
+            .populate('memberId')
+            .populate('householdId');
+
+        res.json(populated);
+    } catch (error) {
+        res.status(500).json({ error: 'Failed to update death record' });
+    }
+};
+
+// @desc    Delete a death record (only if pending/rejected)
+// @route   DELETE /api/organizations/:orgId/death/:id
 exports.deleteDeathRecord = async (req, res) => {
     try {
         const record = await DeathRegister.findById(req.params.id);
-
-        if (!record) {
-            return res.status(404).json({ error: 'Death record not found' });
-        }
-
+        if (!record) return res.status(404).json({ error: 'Death record not found' });
         if (record.status === 'verified') {
             return res.status(400).json({ error: 'Cannot delete a verified death record' });
         }
-
         await DeathRegister.findByIdAndDelete(req.params.id);
         res.json({ message: 'Death record deleted successfully' });
     } catch (error) {
-        console.error('Error deleting death record:', error);
         res.status(500).json({ error: 'Failed to delete death record' });
     }
 };

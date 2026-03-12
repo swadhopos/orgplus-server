@@ -547,9 +547,14 @@ exports.listEventTransactions = async (req, res, next) => {
             organizationId: orgId,
             sourceType: 'event',
             sourceId: eventId,
-            'audit.isDeleted': false,
-            status: { $ne: 'voided' }
+            'audit.isDeleted': false
         };
+
+        if (req.query.status) {
+            filter.status = req.query.status;
+        } else {
+            filter.status = { $ne: 'voided' };
+        }
 
         const [transactions, total] = await Promise.all([
             Transaction.find(filter)

@@ -47,9 +47,11 @@ const authenticateToken = async (req, res, next) => {
 
     // Extract user information and custom claims
     const userInfo = {
+      id: decodedToken.uid,
       uid: decodedToken.uid,
       email: decodedToken.email || null,
       role: decodedToken.role || null,
+      organizationId: decodedToken.orgId || null,
       orgId: decodedToken.orgId || null,
       householdId: decodedToken.householdId || null,
       permissions: decodedToken.permissions || []
@@ -131,9 +133,11 @@ const authenticateTokenOptional = async (req, res, next) => {
     const decodedToken = await verifyIdToken(token);
 
     req.user = {
+      id: decodedToken.uid,
       uid: decodedToken.uid,
       email: decodedToken.email || null,
       role: decodedToken.role || null,
+      organizationId: decodedToken.orgId || null,
       orgId: decodedToken.orgId || null,
       householdId: decodedToken.householdId || null,
       permissions: decodedToken.permissions || []

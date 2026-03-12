@@ -2,6 +2,7 @@ require('dotenv').config();
 const app = require('./app');
 const { connectDatabase } = require('./config/database');
 const logger = require('./utils/logger');
+const { initBillingCron } = require('./services/billingCron');
 
 const PORT = process.env.PORT || 3000;
 
@@ -40,6 +41,9 @@ connectDatabase()
         port: PORT,
         environment: process.env.NODE_ENV || 'development'
       });
+      
+      // Initialize background jobs
+      initBillingCron();
     });
 
     // Graceful shutdown handling
