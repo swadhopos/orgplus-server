@@ -143,6 +143,14 @@ exports.createMember = async (req, res, next) => {
     });
 
     await member.save();
+    
+    // Two-way spouse link
+    if (spouseId) {
+      await Member.updateOne(
+        { _id: spouseId },
+        { spouseId: member._id }
+      );
+    }
 
     // Trigger auto-assignment for Member
     autoAssignPlansToNewTarget(orgId, member._id, 'MEMBER', req.user.uid).catch(err => 
@@ -171,7 +179,8 @@ exports.createMember = async (req, res, next) => {
 exports.listMembers = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { page = 1, limit = 10, currentHouseholdId, search } = req.query;
+    const { page = 1, limit = 10, currentHouseholdId: queryHHId, householdId, search } = req.query;
+    const currentHouseholdId = queryHHId || householdId;
     const skip = (page - 1) * limit;
 
     // Apply tenant filter
@@ -368,6 +377,9 @@ exports.updateMember = async (req, res, next) => {
       throw new NotFoundError('Member not found');
     }
 
+    const oldSpouseId = member.spouseId;
+    const newSpouseId = spouseId;
+
     // Update fields
     if (fullName) member.fullName = fullName;
     if (gender) member.gender = gender;
@@ -380,10 +392,28 @@ exports.updateMember = async (req, res, next) => {
     if (status) member.status = status;
     if (fatherId !== undefined) member.fatherId = fatherId;
     if (motherId !== undefined) member.motherId = motherId;
-    if (spouseId !== undefined) member.spouseId = spouseId;
+    if (newSpouseId !== undefined) member.spouseId = newSpouseId;
     if (req.body.capacityOverrides !== undefined) member.capacityOverrides = req.body.capacityOverrides;
 
     await member.save();
+
+    // Two-way spouse link handling
+    if (newSpouseId !== undefined && oldSpouseId?.toString() !== newSpouseId?.toString()) {
+      // Clear old spouse's link if it points to this member
+      if (oldSpouseId) {
+        await Member.updateOne(
+          { _id: oldSpouseId, spouseId: id },
+          { spouseId: null }
+        );
+      }
+      // Set new spouse's link to point to this member
+      if (newSpouseId) {
+        await Member.updateOne(
+          { _id: newSpouseId },
+          { spouseId: id }
+        );
+      }
+    }
 
     logger.info('Member updated', {
       memberId: member._id,

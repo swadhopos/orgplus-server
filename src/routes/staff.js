@@ -3,9 +3,11 @@ const router = express.Router({ mergeParams: true }); // Merge params to access 
 const staffController = require('../controllers/staffController');
 const { requireRole } = require('../middleware/authorize');
 
-// Only Admins can manage staff
-// Apply requireRole middleware to all staff routes
-router.use(requireRole('systemAdmin', 'admin'));
+const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
+
+// Only Admins or Main Committee Officers can manage staff
+router.use(requireRole('systemAdmin', 'admin', 'orgMember'));
+router.use(requireMainCommitteeAccess);
 
 /**
  * @route   POST /api/organizations/:orgId/staff

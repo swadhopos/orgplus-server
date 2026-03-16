@@ -15,6 +15,16 @@ const orgSettingsSchema = new mongoose.Schema({
         index: true
     },
 
+    // ─── Certificate Style Settings ──────────────────────────────────────────
+    // Each BMD certificate type independently picks a style from the frontend
+    // style registry. Stored as a free-form string key (e.g. 'vertical-classic').
+    // No enum — new styles can be added to the frontend without a server change.
+    certificateSettings: {
+        deathCertificateStyleId: { type: String, default: 'vertical-classic' },
+        marriageNocStyleId:      { type: String, default: 'vertical-classic' },
+        marriageCertStyleId:     { type: String, default: 'vertical-classic' }
+    },
+
     // ─── BMD Approval Settings ───────────────────────────────────────────────
     // Applied to: Marriage NOC, Death Records, Marriage Certificates
     approvalSettings: {

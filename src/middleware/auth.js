@@ -54,6 +54,9 @@ const authenticateToken = async (req, res, next) => {
       organizationId: decodedToken.orgId || null,
       orgId: decodedToken.orgId || null,
       householdId: decodedToken.householdId || null,
+      memberId: decodedToken.memberId || null,
+      isCommitteeAccount: decodedToken.isCommitteeAccount || false,
+      isCommitteeOfficer: decodedToken.isCommitteeOfficer || false,
       permissions: decodedToken.permissions || []
     };
 
@@ -132,7 +135,8 @@ const authenticateTokenOptional = async (req, res, next) => {
     // Try to verify token
     const decodedToken = await verifyIdToken(token);
 
-    req.user = {
+    // Extract user information and custom claims
+    const userInfo = {
       id: decodedToken.uid,
       uid: decodedToken.uid,
       email: decodedToken.email || null,
@@ -140,6 +144,9 @@ const authenticateTokenOptional = async (req, res, next) => {
       organizationId: decodedToken.orgId || null,
       orgId: decodedToken.orgId || null,
       householdId: decodedToken.householdId || null,
+      memberId: decodedToken.memberId || null,
+      isCommitteeAccount: decodedToken.isCommitteeAccount || false,
+      isCommitteeOfficer: decodedToken.isCommitteeOfficer || false,
       permissions: decodedToken.permissions || []
     };
 

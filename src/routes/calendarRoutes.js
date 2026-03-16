@@ -4,7 +4,9 @@ const { authenticateToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/authorize');
 const calendarController = require('../controllers/calendarController');
 
-// Protect all routes
+const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
+
+// Protected routes - require admin, systemAdmin, or an active main committee officer role
 router.use(authenticateToken);
 
 // Unified calendar endpoints
@@ -13,11 +15,11 @@ router.get('/', calendarController.getCalendarItems);
 
 // Conflict checking endpoint
 // POST /api/organizations/:orgId/calendar/check-conflicts
-router.post('/check-conflicts', requireRole('admin', 'staff'), calendarController.checkConflicts);
+router.post('/check-conflicts', requireRole('admin', 'staff', 'orgMember'), requireMainCommitteeAccess, calendarController.checkConflicts);
 
 // Manage custom pure-calendar bookings (marriages, funerals, etc.)
-router.post('/bookings', requireRole('admin', 'staff'), calendarController.createBooking);
-router.put('/bookings/:bookingId', requireRole('admin', 'staff'), calendarController.updateBooking);
-router.delete('/bookings/:bookingId', requireRole('admin', 'staff'), calendarController.deleteBooking);
+router.post('/bookings', requireRole('admin', 'staff', 'orgMember'), requireMainCommitteeAccess, calendarController.createBooking);
+router.put('/bookings/:bookingId', requireRole('admin', 'staff', 'orgMember'), requireMainCommitteeAccess, calendarController.updateBooking);
+router.delete('/bookings/:bookingId', requireRole('admin', 'staff', 'orgMember'), requireMainCommitteeAccess, calendarController.deleteBooking);
 
 module.exports = router;

@@ -7,10 +7,14 @@ const {
     deleteFeePlan
 } = require('../controllers/feeController');
 const { authenticateToken } = require('../middleware/auth');
+const { requireRole } = require('../middleware/authorize');
+const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
 const router = express.Router({ mergeParams: true });
 
-// Protect all routes
+// Protect all routes - require admin, systemAdmin, or an active main committee officer role
 router.use(authenticateToken);
+router.use(requireRole('systemAdmin', 'admin', 'orgMember'));
+router.use(requireMainCommitteeAccess);
 
 router.route('/')
     .get(getFeePlans)

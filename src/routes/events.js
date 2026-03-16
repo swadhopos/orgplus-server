@@ -4,8 +4,11 @@ const ctrl = require('../controllers/eventController');
 const { requireRole } = require('../middleware/authorize');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
 
-// All event routes require at least admin role
-router.use(requireRole('systemAdmin', 'admin'));
+const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
+
+// All event routes require admin role or main committee officer access
+router.use(requireRole('systemAdmin', 'admin', 'orgMember'));
+router.use(requireMainCommitteeAccess);
 router.use(applyTenantFilter);
 
 // ── Events ────────────────────────────────────────────────────────────────────

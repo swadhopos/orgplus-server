@@ -4,8 +4,11 @@ const ledgerController = require('../controllers/ledgerController');
 const { requireRole } = require('../middleware/authorize');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
 
-// All routes require admin or systemAdmin role
-router.use(requireRole('systemAdmin', 'admin'));
+const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
+
+// All routes require admin, systemAdmin, or an active main committee officer role
+router.use(requireRole('systemAdmin', 'admin', 'orgMember'));
+router.use(requireMainCommitteeAccess);
 
 // All routes apply tenant filtering
 router.use(applyTenantFilter);

@@ -38,6 +38,11 @@ const committeeSchema = new mongoose.Schema({
     default: null,
     index: true
   },
+  // Main committee flag
+  isMain: {
+    type: Boolean,
+    default: false
+  },
   // Audit fields
   createdAt: {
     type: Date,
@@ -64,9 +69,35 @@ const committeeSchema = new mongoose.Schema({
 committeeSchema.index({ organizationId: 1, isDeleted: 1 });
 committeeSchema.index({ name: 1, organizationId: 1 });
 
-// Middleware to update updatedAt
-committeeSchema.pre('save', function (next) {
+// Middleware to update updatedAt and handle isMain logic
+committeeSchema.pre('save', async function (next) {
   this.updatedAt = new Date();
+  
+  if (this.isNew && !this.isMain) {
+    // If there is no other main committee that is NOT dissolved, make this one main automatically
+    const existingMain = await this.constructor.findOne({ 
+      organizationId: this.organizationId, 
+      isMain: true,
+      status: { $ne: 'dissolved' }
+    });
+    
+    if (!existingMain) {
+      this.isMain = true;
+    }
+  }
+
+  // If this committee is being set as the main committee, 
+  // ensure no other committee in this org is main
+  if (this.isModified('isMain') && this.isMain) {
+    await this.constructor.updateMany(
+      { 
+        organizationId: this.organizationId, 
+        _id: { $ne: this._id } 
+      },
+      { $set: { isMain: false } }
+    );
+  }
+  
   next();
 });
 

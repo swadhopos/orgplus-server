@@ -1,10 +1,12 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { authenticateToken } = require('../middleware/auth');
+const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
 const deathRegisterController = require('../controllers/deathRegisterController');
 
 // All routes require authentication
 router.use(authenticateToken);
+router.use(requireMainCommitteeAccess);
 
 router.route('/')
     .post(deathRegisterController.createDeathRecord)

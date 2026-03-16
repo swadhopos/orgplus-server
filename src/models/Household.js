@@ -54,6 +54,11 @@ const householdSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  financialStatus: {
+    type: String,
+    enum: ['APL', 'BPL', 'None'],
+    default: 'None'
+  },
 
   // Capacity Overrides (Pricing)
   capacityOverrides: [{

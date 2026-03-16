@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const { authenticateToken } = require('../middleware/auth');
+const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
 
 const {
     getNOCs,
@@ -11,6 +12,7 @@ const {
 
 // All routes require authentication
 router.use(authenticateToken);
+router.use(requireMainCommitteeAccess);
 
 // Map: /api/organizations/:orgId/certificates/noc
 router.route('/')

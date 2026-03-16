@@ -15,7 +15,7 @@ const PRIVILEGED_ROLES = ['president', 'vice-president', 'secretary', 'treasurer
 exports.createCommittee = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { name, description, type, status, startDate, endDate, eventId } = req.body;
+    const { name, description, type, status, startDate, endDate, eventId, isMain } = req.body;
 
     if (!name || !type) {
       throw new ValidationError('Missing required fields: name, type');
@@ -29,6 +29,7 @@ exports.createCommittee = async (req, res, next) => {
       startDate,
       endDate,
       eventId: eventId || null,
+      isMain: isMain || false,
       organizationId: orgId,
       createdByUserId: req.user.uid
     });
@@ -106,7 +107,7 @@ exports.getCommittee = async (req, res, next) => {
 exports.updateCommittee = async (req, res, next) => {
   try {
     const { orgId, id } = req.params;
-    const { name, description, type, status, startDate, endDate } = req.body;
+    const { name, description, type, status, startDate, endDate, isMain } = req.body;
 
     const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
     const committee = await Committee.findOne(filter);
@@ -119,10 +120,69 @@ exports.updateCommittee = async (req, res, next) => {
     if (status) committee.status = status;
     if (startDate !== undefined) committee.startDate = startDate;
     if (endDate !== undefined) committee.endDate = endDate;
+    if (isMain !== undefined) committee.isMain = isMain;
 
     await committee.save();
 
     logger.info('Committee updated', { committeeId: committee._id, organizationId: orgId, updatedBy: req.user.uid });
+
+    res.json({ success: true, data: committee });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Dissolve committee
+ * Sets status to 'dissolved'. If it is the main committee, it strips access
+ * from all privileged members.
+ */
+exports.dissolveCommittee = async (req, res, next) => {
+  try {
+    const { orgId, id } = req.params;
+
+    const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
+    const committee = await Committee.findOne(filter);
+
+    if (!committee) throw new NotFoundError('Committee not found');
+    if (committee.status === 'dissolved') throw new ValidationError('Committee is already dissolved');
+
+    committee.status = 'dissolved';
+    
+    // If it was the main committee, we strip privileges.
+    if (committee.isMain) {
+      // Find all privileged committee members
+      const privilegedMembers = await CommitteeMember.find({
+        committeeId: id,
+        organizationId: orgId,
+        isExternal: false,
+        role: { $in: PRIVILEGED_ROLES }
+      }).populate('memberId');
+
+      for (const cm of privilegedMembers) {
+        if (cm.memberId?.userId) {
+          try {
+            const firebaseUser = await getUserByUid(cm.memberId.userId);
+            if (firebaseUser) {
+              const existingClaims = firebaseUser.customClaims || {};
+              const { memberId: _removed, isCommitteeAccount: _removedFlag, isCommitteeOfficer: _removedOfficer, ...strippedClaims } = existingClaims;
+              
+              if (existingClaims.isCommitteeAccount) {
+                 await setCustomClaims(cm.memberId.userId, { ...strippedClaims, role: 'disabled' });
+              } else {
+                 await setCustomClaims(cm.memberId.userId, strippedClaims);
+              }
+            }
+          } catch (err) {
+            logger.warn('Failed to strip member privileges during committee dissolution', { error: err.message, memberId: cm.memberId._id });
+          }
+        }
+      }
+    }
+
+    await committee.save();
+
+    logger.info('Committee dissolved', { committeeId: committee._id, organizationId: orgId, dissolvedBy: req.user.uid });
 
     res.json({ success: true, data: committee });
   } catch (error) {
@@ -288,9 +348,9 @@ exports.removeCommitteeMember = async (req, res, next) => {
           const firebaseUser = await getUserByUid(member.userId);
           if (firebaseUser) {
             const existingClaims = firebaseUser.customClaims || {};
-            const { memberId: _removed, ...strippedClaims } = existingClaims;
-            // If this was a committee_member account (not a household head), disable it
-            if (existingClaims.role === 'committee_member') {
+            const { memberId: _removed, isCommitteeAccount: _removedFlag, isCommitteeOfficer: _removedOfficer, ...strippedClaims } = existingClaims;
+            // If this was a committee-only account (not a household head), disable it
+            if (existingClaims.isCommitteeAccount) {
               await setCustomClaims(member.userId, { ...strippedClaims, role: 'disabled' });
             } else {
               // Household head — just remove the memberId claim
@@ -359,7 +419,8 @@ exports.createMemberLogin = async (req, res, next) => {
       const existingClaims = firebaseUser.customClaims || {};
       await setCustomClaims(member.userId, {
         ...existingClaims,
-        memberId: member._id.toString()  // ← add the bridge
+        memberId: member._id.toString(),  // ← add the bridge
+        isCommitteeOfficer: true
       });
 
       firebaseUid = member.userId;
@@ -386,11 +447,13 @@ exports.createMemberLogin = async (req, res, next) => {
       const newUser = await createUser(email, password);
       firebaseUid = newUser.uid;
 
-      // Set custom claims
+      // Set custom claims (Simplified as requested: just memberId and orgId, plus flag for cleanup)
       await setCustomClaims(firebaseUid, {
         orgId: orgId.toString(),
-        role: 'committee_member',
-        memberId: member._id.toString()
+        memberId: member._id.toString(),
+        role: 'orgMember',
+        isCommitteeAccount: true,
+        isCommitteeOfficer: true
       });
 
       // Write the Firebase UID back to the Member document
