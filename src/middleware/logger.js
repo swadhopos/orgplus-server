@@ -1,17 +1,11 @@
-/**
- * Request Logger Middleware for OrgPlus Multi-Tenant System
- * 
- * This middleware logs all incoming requests and responses for monitoring and debugging.
- * It generates a unique request ID for each request, logs request details, and measures response time.
- */
-
 const { logger, generateRequestId } = require('../utils/logger');
+const { maskData } = require('../utils/masking');
 
 /**
  * Middleware to log incoming requests and responses
  * 
- * Generates a unique request ID, logs request details (method, path, query, user info),
- * and logs response details (status code, duration) when the response finishes.
+ * Generates a unique request ID, logs request details (method, path, query, body, user info),
+ * and logs response details (status code, body, duration) when the response finishes.
  * 
  * @param {Object} req - Express request object
  * @param {Object} res - Express response object
@@ -30,12 +24,28 @@ const requestLogger = (req, res, next) => {
     path: req.path,
     url: req.originalUrl,
     query: req.query,
+    body: maskData(req.body),
     userId: req.user?.uid || null,
     role: req.user?.role || null,
     orgId: req.user?.orgId || null,
     ip: req.ip || req.connection?.remoteAddress,
     userAgent: req.get('user-agent')
   });
+
+  // Track response body
+  const originalSend = res.send;
+  const originalJson = res.json;
+  let responseBody;
+
+  res.send = function(body) {
+    responseBody = body;
+    return originalSend.apply(res, arguments);
+  };
+
+  res.json = function(body) {
+    responseBody = body;
+    return originalJson.apply(res, arguments);
+  };
 
   // Add request ID to response headers
   res.setHeader('X-Request-ID', req.id);
@@ -44,12 +54,23 @@ const requestLogger = (req, res, next) => {
   res.on('finish', () => {
     const duration = Date.now() - start;
 
+    // Parse response body if it's a string (e.g. from res.send)
+    let parsedBody = responseBody;
+    if (typeof responseBody === 'string') {
+      try {
+        parsedBody = JSON.parse(responseBody);
+      } catch (e) {
+        // Keep as string if not JSON
+      }
+    }
+
     logger.info('Response finished', {
       type: 'response',
       requestId: req.id,
       method: req.method,
-      path: req.path,
+      path: req.originalUrl,
       statusCode: res.statusCode,
+      body: maskData(parsedBody),
       duration,
       userId: req.user?.uid || null
     });

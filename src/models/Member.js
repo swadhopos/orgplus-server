@@ -17,6 +17,7 @@ const memberSchema = new mongoose.Schema({
     required: true
   },
 
+
   // Identity
   fullName: {
     type: String,
@@ -172,7 +173,7 @@ const memberSchema = new mongoose.Schema({
 });
 
 // Indexes
-memberSchema.index({ organizationId: 1, memberSequence: 1 }, { unique: true });
+memberSchema.index({ organizationId: 1, currentHouseholdId: 1, memberSequence: 1 }, { unique: true });
 memberSchema.index({ organizationId: 1, currentHouseholdId: 1, isDeleted: 1 });
 memberSchema.index({ fatherId: 1 });
 memberSchema.index({ motherId: 1 });

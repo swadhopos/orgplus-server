@@ -50,8 +50,7 @@ const marriageNocSchema = new mongoose.Schema({
     },
     approvals: [approvalSchema],
     issuedByUserId: {
-        type: mongoose.Schema.Types.ObjectId,
-        ref: 'User',
+        type: String,
         required: true
     },
     notes: {
