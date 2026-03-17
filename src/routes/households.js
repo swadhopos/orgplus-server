@@ -26,7 +26,11 @@ router.get('/:id', householdController.getHousehold);
 // Update household
 router.put('/:id', householdController.updateHousehold);
 
+// Relocate household
+router.put('/:id/relocate', householdController.relocateHousehold);
+
 // Delete household
 router.delete('/:id', householdController.deleteHousehold);
+
 
 module.exports = router;

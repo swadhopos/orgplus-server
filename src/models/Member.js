@@ -120,7 +120,7 @@ const memberSchema = new mongoose.Schema({
   relocatedAt: Date,
   relocationReason: {
     type: String,
-    enum: ['marriage', 'jobTransfer', 'migration', 'education', 'unknown']
+    enum: ['marriage', 'jobTransfer', 'migration', 'education', 'movedWithinOrganization', 'movedOutsideOrganization', 'demolition', 'unknown']
   },
 
   // Death information

@@ -323,3 +323,63 @@ exports.deleteHousehold = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Relocate household (Transition to 'relocated' status)
+ */
+exports.relocateHousehold = async (req, res, next) => {
+  try {
+    const { orgId, id } = req.params;
+    const { relocationReason, relocationNotes } = req.body;
+
+    if (!relocationReason) {
+      throw new ValidationError('Relocation reason is required');
+    }
+
+    // Apply tenant filter
+    const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
+    delete filter.householdId;
+
+    const household = await Household.findOne(filter);
+
+    if (!household) {
+      throw new NotFoundError('Household not found');
+    }
+
+    // Update status and relocation details
+    household.status = 'relocated';
+    household.relocatedAt = new Date();
+    household.relocationReason = relocationReason;
+    household.relocationNotes = relocationNotes;
+
+    await household.save();
+
+    // Synchronize status to all members of this household
+    await Member.updateMany(
+      { currentHouseholdId: household._id, organizationId: orgId, isDeleted: false },
+      { 
+        $set: { 
+          status: 'relocated',
+          relocatedAt: household.relocatedAt,
+          relocationReason: relocationReason
+        } 
+      }
+    );
+
+    logger.info('Household and members relocated', {
+      householdId: household._id,
+      organizationId: orgId,
+      relocatedBy: req.user.uid,
+      reason: relocationReason
+    });
+
+
+    res.json({
+      success: true,
+      data: household
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
