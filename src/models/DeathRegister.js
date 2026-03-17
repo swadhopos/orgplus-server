@@ -32,6 +32,11 @@ const deathRegisterSchema = new mongoose.Schema({
         required: true
     },
 
+    // Denormalized fields for search
+    memberFullName: { type: String, trim: true },
+    memberNumber: { type: String, trim: true },
+    householdNumber: { type: String, trim: true },
+
     // Death details
     dateOfDeath: { type: Date, required: true },
     causeOfDeath: { type: String, trim: true },
@@ -76,5 +81,6 @@ const deathRegisterSchema = new mongoose.Schema({
 deathRegisterSchema.index({ organizationId: 1, status: 1 });
 deathRegisterSchema.index({ memberId: 1 }, { unique: true });
 deathRegisterSchema.index({ householdId: 1 });
+deathRegisterSchema.index({ memberFullName: 'text', memberNumber: 'text', householdNumber: 'text', certificateNumber: 'text' });
 
 module.exports = mongoose.model('DeathRegister', deathRegisterSchema);

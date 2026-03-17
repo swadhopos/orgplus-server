@@ -44,16 +44,41 @@ async function validateApprover(orgId, userId, memberId) {
 exports.getNOCs = async (req, res) => {
     try {
         const { orgId } = req.params;
-        const { status } = req.query;
+        const { page = 1, limit = 20, search, status } = req.query;
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+
         const filter = { organizationId: orgId };
         if (status) filter.status = status;
 
-        const nocs = await MarriageNOC.find(filter)
-            .populate('memberId', 'fullName mobileNumber gender memberNumber')
-            .populate('approvals.memberId', 'fullName')
-            .sort({ createdAt: -1 });
+        if (search) {
+            filter.$or = [
+                { memberFullName: { $regex: search, $options: 'i' } },
+                { memberNumber: { $regex: search, $options: 'i' } },
+                { householdNumber: { $regex: search, $options: 'i' } },
+                { certificateNumber: { $regex: search, $options: 'i' } }
+            ];
+        }
 
-        res.status(200).json(nocs);
+        const [nocs, total] = await Promise.all([
+            MarriageNOC.find(filter)
+                .populate('memberId', 'fullName mobileNumber gender memberNumber')
+                .populate('approvals.memberId', 'fullName')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(parseInt(limit)),
+            MarriageNOC.countDocuments(filter)
+        ]);
+
+        res.status(200).json({
+            success: true,
+            data: nocs,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
     } catch (err) {
         res.status(500).json({ error: err.message });
     }
@@ -66,9 +91,11 @@ exports.createNOC = async (req, res) => {
         const { orgId } = req.params;
         const { memberId, fianceDetails, notes } = req.body;
 
-        // Check member exists
-        const member = await Member.findById(memberId);
+        // Check member exists and get household info
+        const member = await Member.findById(memberId).populate('currentHouseholdId');
         if (!member) return res.status(404).json({ error: 'Member not found' });
+        
+        const household = member.currentHouseholdId;
 
         // Atomically generate a unique, human-readable certificate number
         const certificateNumber = await generateCertNumber(orgId, 'NOC');
@@ -76,12 +103,16 @@ exports.createNOC = async (req, res) => {
         const newNoc = new MarriageNOC({
             organizationId: orgId,
             memberId,
+            memberFullName: member.fullName,
+            memberNumber: member.memberNumber,
+            householdNumber: household?.houseNumber || '',
+            householdId: household?._id,
             certificateNumber,
             fianceDetails,
             notes,
             status: 'pending',       // awaits committee approvals
             issueDate: null,
-            issuedByUserId: req.user.id
+            issuedByUserId: req.user.uid
         });
 
         await newNoc.save();

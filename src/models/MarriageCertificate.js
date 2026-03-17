@@ -48,6 +48,16 @@ const marriageCertificateSchema = new mongoose.Schema({
         index: true
     },
 
+    // Denormalized fields for search
+    spouseAFullName: { type: String, trim: true },
+    spouseANumber: { type: String, trim: true },
+    spouseAHouseholdNumber: { type: String, trim: true },
+    spouseAHouseholdId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Household',
+        index: true
+    },
+    
     // ─── Spouse B (varies by marriageType) ──────────────────────────────────
     // Populated after issue for intra / incoming
     spouseBId: {
@@ -141,5 +151,6 @@ const marriageCertificateSchema = new mongoose.Schema({
 marriageCertificateSchema.index({ organizationId: 1, certificateNumber: 1 }, { unique: true });
 // Fast lookup: one active certificate per member
 marriageCertificateSchema.index({ spouseAId: 1, status: 1 });
+marriageCertificateSchema.index({ spouseAFullName: 'text', spouseANumber: 'text', spouseAHouseholdNumber: 'text', certificateNumber: 'text' });
 
 module.exports = mongoose.model('MarriageCertificate', marriageCertificateSchema);

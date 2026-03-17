@@ -59,10 +59,19 @@ exports.createDeathRecord = async (req, res) => {
         // Atomically generate a unique, human-readable certificate number
         const certNumber = await generateCertNumber(organizationId, 'DC');
 
+        // Fetch member and household info for denormalization
+        const member = await Member.findById(memberId).populate('currentHouseholdId');
+        if (!member) return res.status(404).json({ error: 'Member not found' });
+        
+        const household = member.currentHouseholdId;
+
         const newRecord = new DeathRegister({
             organizationId,
             memberId,
-            householdId,
+            householdId: household?._id || householdId,
+            memberFullName: member.fullName,
+            memberNumber: member.memberNumber,
+            householdNumber: household?.houseNumber || '',
             dateOfDeath,
             causeOfDeath,
             placeOfDeath,
@@ -88,19 +97,47 @@ exports.createDeathRecord = async (req, res) => {
 // @route   GET /api/organizations/:orgId/death
 exports.getDeathRecords = async (req, res) => {
     try {
-        const { organizationId } = req.query;
+        const { organizationId, page = 1, limit = 20, search, status } = req.query;
 
         if (!organizationId) {
             return res.status(400).json({ error: 'organizationId query parameter is required' });
         }
 
-        const records = await DeathRegister.find({ organizationId })
-            .populate('memberId', 'fullName mobileNumber gender')
-            .populate('householdId', 'name householdNumber')
-            .populate('approvals.memberId', 'fullName')
-            .sort({ dateOfDeath: -1 });
+        const skip = (parseInt(page) - 1) * parseInt(limit);
+        const filter = { organizationId };
+        
+        if (status) filter.status = status;
+        
+        if (search) {
+            filter.$or = [
+                { memberFullName: { $regex: search, $options: 'i' } },
+                { memberNumber: { $regex: search, $options: 'i' } },
+                { householdNumber: { $regex: search, $options: 'i' } },
+                { certificateNumber: { $regex: search, $options: 'i' } }
+            ];
+        }
 
-        res.json(records);
+        const [records, total] = await Promise.all([
+            DeathRegister.find(filter)
+                .populate('memberId', 'fullName mobileNumber gender memberNumber')
+                .populate('householdId', 'name houseNumber')
+                .populate('approvals.memberId', 'fullName')
+                .sort({ dateOfDeath: -1, createdAt: -1 })
+                .skip(skip)
+                .limit(parseInt(limit)),
+            DeathRegister.countDocuments(filter)
+        ]);
+
+        res.json({
+            success: true,
+            data: records,
+            pagination: {
+                page: parseInt(page),
+                limit: parseInt(limit),
+                total,
+                pages: Math.ceil(total / parseInt(limit))
+            }
+        });
     } catch (error) {
         console.error('Error fetching death records:', error);
         res.status(500).json({ error: 'Failed to fetch death records' });

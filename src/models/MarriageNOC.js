@@ -28,6 +28,17 @@ const marriageNocSchema = new mongoose.Schema({
         required: true,
         index: true
     },
+
+    // Denormalized fields for search
+    memberFullName: { type: String, trim: true },
+    memberNumber: { type: String, trim: true },
+    householdNumber: { type: String, trim: true },
+    householdId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Household',
+        index: true
+    },
+    
     certificateNumber: {
         type: String,
         required: true
@@ -62,6 +73,7 @@ const marriageNocSchema = new mongoose.Schema({
 
 // Ensure unique certificate numbers per organization
 marriageNocSchema.index({ organizationId: 1, certificateNumber: 1 }, { unique: true });
+marriageNocSchema.index({ memberFullName: 'text', memberNumber: 'text', householdNumber: 'text', certificateNumber: 'text' });
 
 const MarriageNOC = mongoose.model('MarriageNOC', marriageNocSchema);
 

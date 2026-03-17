@@ -110,13 +110,23 @@ exports.getCertificates = async (req, res, next) => {
 
         const filter = { organizationId: orgId };
         if (status) filter.status = status;
+        
+        if (req.query.search) {
+            const search = req.query.search;
+            filter.$or = [
+                { spouseAFullName: { $regex: search, $options: 'i' } },
+                { spouseANumber: { $regex: search, $options: 'i' } },
+                { spouseAHouseholdNumber: { $regex: search, $options: 'i' } },
+                { certificateNumber: { $regex: search, $options: 'i' } }
+            ];
+        }
 
         const [certificates, total] = await Promise.all([
             MarriageCertificate.find(filter)
                 .populate('spouseAId', 'fullName memberNumber gender')
                 .populate('spouseBId', 'fullName memberNumber gender')
                 .populate('approvals.memberId', 'fullName')
-                .sort({ createdAt: -1 })
+                .sort({ marriageDate: -1, createdAt: -1 })
                 .skip(skip)
                 .limit(parseInt(limit)),
             MarriageCertificate.countDocuments(filter)
@@ -163,7 +173,7 @@ exports.createCertificate = async (req, res, next) => {
         }
 
         // ── Validate spouseA exists in this org
-        const spouseA = await Member.findOne({ _id: spouseAId, organizationId: orgId, isDeleted: false });
+        const spouseA = await Member.findOne({ _id: spouseAId, organizationId: orgId, isDeleted: false }).populate('currentHouseholdId');
         if (!spouseA) throw new NotFoundError('Spouse A (member) not found in this organisation');
 
         // ── Prevent duplicate active certificates for the same member
@@ -192,6 +202,8 @@ exports.createCertificate = async (req, res, next) => {
 
         const certificateNumber = await generateCertNumber(orgId, 'MC');
 
+        const householdA = spouseA.currentHouseholdId;
+
         const certificate = new MarriageCertificate({
             organizationId: orgId,
             certificateNumber,
@@ -199,6 +211,10 @@ exports.createCertificate = async (req, res, next) => {
             venue,
             marriageType,
             spouseAId,
+            spouseAFullName: spouseA.fullName,
+            spouseANumber: spouseA.memberNumber,
+            spouseAHouseholdNumber: householdA?.houseNumber || '',
+            spouseAHouseholdId: householdA?._id,
             spouseBId: marriageType === 'intra' ? spouseBId : undefined,
             spouseBNewMemberData: marriageType === 'incoming' ? spouseBNewMemberData : undefined,
             spouseBExternal: marriageType === 'outgoing' ? spouseBExternal : undefined,
