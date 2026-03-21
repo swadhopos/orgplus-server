@@ -99,6 +99,13 @@ const transactionSchema = new mongoose.Schema({
         required: [true, 'Transaction date is required'],
         default: Date.now
     },
+    // Computed at invoice creation from plan.dueDate (ONE_TIME)
+    // or plan.gracePeriodDays (RECURRING). Null for non-invoice transactions.
+    dueDate: {
+        type: Date,
+        default: null,
+        index: true
+    },
     description: {
         type: String,
         trim: true,
@@ -169,6 +176,12 @@ const transactionSchema = new mongoose.Schema({
 });
 
 // ── Indexes ────────────────────────────────────────────────────────
+// Index for efficient payment reminder queries (9 AM Cron)
+transactionSchema.index({ type: 1, status: 1, 'audit.isDeleted': 1, date: 1 });
+
+/**
+ * Common Indexes for lookup and reporting
+ */
 transactionSchema.index({ sourceType: 1, sourceId: 1 });
 transactionSchema.index({ organizationId: 1, date: -1 });
 transactionSchema.index({ organizationId: 1, type: 1 });

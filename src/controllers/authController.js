@@ -37,6 +37,24 @@ const bootstrap = async (req, res, next) => {
       requestId: req.id
     });
 
+    // SECURITY: Only allow bootstrap in development or with explicit override
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const allowBootstrap = process.env.ALLOW_BOOTSTRAP === 'true';
+
+    if (!isDevelopment && !allowBootstrap) {
+      logger.error('Bootstrap attempt blocked: Outside development environment without override', {
+        requestId: req.id,
+        nodeEnv: process.env.NODE_ENV
+      });
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: 'FORBIDDEN',
+          message: 'System bootstrap is disabled in this environment'
+        }
+      });
+    }
+
     // Check if system admin already exists
     // We'll check if a user with the bootstrap email exists and has systemAdmin role
     const existingUser = await getUserByEmail(bootstrapEmail);

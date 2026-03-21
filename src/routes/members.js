@@ -7,15 +7,22 @@ const { applyTenantFilter } = require('../middleware/tenantFilter');
 
 const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
 
-// All routes require admin, systemAdmin, or an active main committee officer role
-router.use(requireRole('systemAdmin', 'admin', 'orgMember'));
-router.use(requireMainCommitteeAccess);
-
 // All routes apply tenant filtering
 router.use(applyTenantFilter);
 
+// FCM Token Management (Accessible by anyone with orgMember role or above)
+// These are placed BEFORE requireMainCommitteeAccess
+router.post('/fcm-token', memberController.updateFcmToken);
+router.post('/:id/fcm-token', memberController.updateFcmToken);
+router.delete('/fcm-token', memberController.removeFcmToken);
+router.delete('/:id/fcm-token', memberController.removeFcmToken);
+
+// All following routes require an active main committee officer role or admin
+router.use(requireMainCommitteeAccess);
+
 // Create member
 router.post('/', memberController.createMember);
+
 
 // List members
 router.get('/', memberController.listMembers);

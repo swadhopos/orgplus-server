@@ -73,7 +73,11 @@ const subscriptionSchema = new mongoose.Schema({
 
 // A single target should not have the same plan assigned multiple times active simultaneously 
 // (unless explicitly desired, but usually we don't want duplicate active subscriptions for the exact same thing)
-subscriptionSchema.index({ organizationId: 1, planId: 1, isDeleted: 1, createdAt: -1 });
+subscriptionSchema.index({ organizationId: 1, planId: 1, billingStatus: 1, isDeleted: 1, createdAt: -1 });
+
+// Index for efficient daily billing queries (used by Cron)
+subscriptionSchema.index({ billingStatus: 1, nextBillingDate: 1, isDeleted: 1 });
+
 subscriptionSchema.index({ planId: 1, targetId: 1, isDeleted: 1 });
 
 subscriptionSchema.pre('save', function (next) {

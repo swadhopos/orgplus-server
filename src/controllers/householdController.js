@@ -5,6 +5,7 @@ const { admin } = require('../config/firebase');
 const { AppError, NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 const { autoAssignPlansToNewTarget } = require('../services/subscriptionService');
+const { escapeRegex } = require('../utils/stringUtils');
 
 /**
  * Create a new household with optional user creation and automatic Head Member creation
@@ -169,9 +170,10 @@ exports.listHouseholds = async (req, res, next) => {
 
     // Search filter
     if (search) {
+      const safeSearch = escapeRegex(search);
       filter.$or = [
-        { houseName: { $regex: search, $options: 'i' } },
-        { houseNumber: { $regex: search, $options: 'i' } }
+        { houseName: { $regex: safeSearch, $options: 'i' } },
+        { houseNumber: { $regex: safeSearch, $options: 'i' } }
       ];
     }
 

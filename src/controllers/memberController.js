@@ -464,3 +464,91 @@ exports.deleteMember = async (req, res, next) => {
     next(error);
   }
 };
+
+/**
+ * Update FCM token for multi-device support
+ * Upserts token by deviceId in the fcmTokens array.
+ */
+exports.updateFcmToken = async (req, res, next) => {
+  try {
+    const { orgId } = req.params;
+    const { token, deviceId, platform, browser } = req.body;
+    const userId = req.user.uid;
+
+    if (!token || !deviceId) {
+      throw new ValidationError('token and deviceId are required');
+    }
+
+    // Find member by Firebase UID (or by memberId if provided in params)
+    const filter = { organizationId: orgId, isDeleted: false };
+    if (req.params.id && req.params.id !== 'me') {
+      filter._id = req.params.id;
+    } else {
+      filter.userId = userId;
+    }
+
+    const member = await Member.findOne(filter);
+    if (!member) {
+      throw new NotFoundError('Member not found');
+    }
+
+    // Upsert token in fcmTokens array
+    const existingIndex = member.fcmTokens.findIndex(t => t.deviceId === deviceId);
+    const tokenData = {
+      token,
+      deviceId,
+      platform: platform || 'web',
+      browser,
+      updatedAt: new Date()
+    };
+
+    if (existingIndex > -1) {
+      member.fcmTokens[existingIndex] = tokenData;
+    } else {
+      member.fcmTokens.push(tokenData);
+    }
+
+    await member.save();
+
+    res.json({
+      success: true,
+      message: 'FCM token updated successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Remove FCM token (logout)
+ */
+exports.removeFcmToken = async (req, res, next) => {
+  try {
+    const { orgId } = req.params;
+    const { deviceId } = req.body;
+    const userId = req.user.uid;
+
+    if (!deviceId) {
+      throw new ValidationError('deviceId is required');
+    }
+
+    const filter = { organizationId: orgId, isDeleted: false };
+    if (req.params.id && req.params.id !== 'me') {
+      filter._id = req.params.id;
+    } else {
+      filter.userId = userId;
+    }
+
+    await Member.updateOne(filter, {
+      $pull: { fcmTokens: { deviceId } }
+    });
+
+    res.json({
+      success: true,
+      message: 'FCM token removed successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

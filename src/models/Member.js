@@ -85,6 +85,20 @@ const memberSchema = new mongoose.Schema({
     default: null
   },
 
+  // FCM push tokens — one per device (PWA browser or native app).
+  // Upserted by deviceId on login / token refresh. Stale tokens auto-removed by fcmService.
+  fcmTokens: [{
+    token: { type: String, required: true },
+    deviceId: { type: String, required: true }, // browser uuid or device id
+    platform: {
+      type: String,
+      enum: ['web', 'android', 'ios'],
+      default: 'web'
+    },
+    browser: { type: String, default: null }, // optional: 'chrome' | 'firefox' | 'safari'
+    updatedAt: { type: Date, default: Date.now }
+  }],
+
   // Work / Education
   occupation: String,
   isWorkingAbroad: {

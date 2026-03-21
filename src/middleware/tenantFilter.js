@@ -122,15 +122,15 @@ const applyTenantFilter = (req, res, next) => {
       return next();
     }
 
-    // Unknown role - no filter applied
-    logger.warn('Unknown user role - no tenant filter applied', {
+    // Unknown role - apply a non-matching filter to prevent data leakage (fail-safe)
+    logger.warn('Unknown user role - applying non-matching tenant filter', {
       uid: req.user.uid,
       email: req.user.email,
       role: req.user.role,
       requestId: req.id
     });
 
-    req.tenantFilter = {};
+    req.tenantFilter = { _id: null }; // Matches nothing, prevents wildcard bypass
     next();
   } catch (error) {
     // Log unexpected errors

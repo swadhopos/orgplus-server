@@ -61,6 +61,17 @@ const feePlanSchema = new mongoose.Schema({
             message: 'Frequency is required for recurring plans'
         }
     },
+    // ONE_TIME plans: fixed calendar deadline for all assigned members
+    dueDate: {
+        type: Date,
+        default: null
+    },
+    // RECURRING plans: days after invoice generation that payment is due
+    gracePeriodDays: {
+        type: Number,
+        default: null,
+        min: [1, 'Grace period must be at least 1 day']
+    },
     targetAudience: {
         type: String,
         enum: {
@@ -108,7 +119,8 @@ const feePlanSchema = new mongoose.Schema({
     deletedAt: { type: Date, default: null }
 });
 
-feePlanSchema.index({ organizationId: 1, isDeleted: 1 });
+feePlanSchema.index({ organizationId: 1, frequency: 1, type: 1, isDeleted: 1 });
+
 
 feePlanSchema.pre('save', function (next) {
     if (!this.isNew) this.updatedAt = new Date();

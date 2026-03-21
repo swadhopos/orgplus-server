@@ -23,11 +23,15 @@ const orgSettingsRoutes = require('./routes/orgSettings');
 const feeRoutes = require('./routes/fees');
 const subscriptionRoutes = require('./routes/subscriptions');
 const categoryRoutes = require('./routes/categories');
+const noticeRoutes = require('./routes/notices');
 
 const app = express();
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: false, // Allow cross-origin images in dev
+}));
+
 
 // CORS configuration
 const corsOptions = {
@@ -43,12 +47,37 @@ app.use(cors(corsOptions));
 // Handle preflight requests explicitly
 app.options('*', cors(corsOptions));
 
+const rateLimit = require('express-rate-limit');
+const path = require('path');
+
 // Body parser middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Rate limiting for auth routes
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15, // Limit each IP to 15 requests per windowMs
+  message: {
+    success: false,
+    error: {
+      code: 'TOO_MANY_REQUESTS',
+      message: 'Too many login attempts. Please try again after 15 minutes.'
+    }
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+});
+
+// Serve uploads folder statically for local development
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
 // Request logging middleware
 app.use(requestLogger);
+
+// Apply rate limiting to auth routes
+app.use('/api/auth', authLimiter);
+
 
 // Health check endpoint
 app.get('/health', (req, res) => {
@@ -155,6 +184,12 @@ app.use('/api/organizations/:orgId/categories',
   authenticateToken,
   requireOrgAccess,
   categoryRoutes
+);
+
+app.use('/api/organizations/:orgId/notices',
+  authenticateToken,
+  requireOrgAccess,
+  noticeRoutes
 );
 
 // Only mount meetings on the organization root

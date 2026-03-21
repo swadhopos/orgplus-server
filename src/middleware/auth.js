@@ -150,6 +150,8 @@ const authenticateTokenOptional = async (req, res, next) => {
       permissions: decodedToken.permissions || []
     };
 
+    req.user = userInfo;
+
     next();
   } catch (error) {
     // For optional auth, invalid tokens result in no user info

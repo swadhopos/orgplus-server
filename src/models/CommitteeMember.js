@@ -60,8 +60,9 @@ const committeeMemberSchema = new mongoose.Schema({
 });
 
 // Indexes
-committeeMemberSchema.index({ committeeId: 1, organizationId: 1 });
+committeeMemberSchema.index({ committeeId: 1, organizationId: 1, status: 1 });
 committeeMemberSchema.index({ memberId: 1 });
+
 
 // Middleware to update updatedAt
 committeeMemberSchema.pre('save', function (next) {
