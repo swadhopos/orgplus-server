@@ -24,6 +24,7 @@ const feeRoutes = require('./routes/fees');
 const subscriptionRoutes = require('./routes/subscriptions');
 const categoryRoutes = require('./routes/categories');
 const noticeRoutes = require('./routes/notices');
+const nicheTypeRoutes = require('./routes/nicheTypes');
 
 const app = express();
 
@@ -91,6 +92,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/organizations', organizationRoutes);
+app.use('/api/admin/niche-types', nicheTypeRoutes);
 
 // Nested routes under organizations - Protected by Auth and Org Access
 const { authenticateToken } = require('./middleware/auth');

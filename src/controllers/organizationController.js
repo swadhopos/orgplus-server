@@ -3,6 +3,8 @@ const { admin } = require('../config/firebase');
 const { AppError, NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 const Counter = require('../models/Counter');
+const OrgNicheType = require('../models/OrgNicheType');
+const OrgConfig = require('../models/OrgConfig');
 const { getNextAlphaId } = require('../utils/idGenerator');
 
 /**
@@ -11,11 +13,21 @@ const { getNextAlphaId } = require('../utils/idGenerator');
 exports.createOrganization = async (req, res, next) => {
   try {
     const {
-      name, type, registrationNumber, establishedDate, totalUnits,
+      name, nicheTypeKey, registrationNumber, establishedDate, totalUnits,
       address, city, state, pincode, country,
       contactEmail, contactPhone, alternatePhone, website, description,
       status, adminEmail, adminPassword
     } = req.body;
+
+    // Validate nicheTypeKey
+    if (!nicheTypeKey) {
+      throw new ValidationError('nicheTypeKey is required');
+    }
+
+    const nicheType = await OrgNicheType.findOne({ key: nicheTypeKey, isActive: true });
+    if (!nicheType) {
+      throw new ValidationError(`Niche type '${nicheTypeKey}' not found or inactive`);
+    }
 
     // Validate required fields
     if (!name || !address || !contactEmail || !contactPhone || !adminEmail || !adminPassword) {
@@ -51,7 +63,8 @@ exports.createOrganization = async (req, res, next) => {
     // Create organization
     const organization = new Organization({
       name,
-      type,
+      type: nicheType.name, // Map niche name to type for legacy compatibility
+      nicheTypeKey,
       registrationNumber,
       establishedDate,
       totalUnits,
@@ -73,6 +86,30 @@ exports.createOrganization = async (req, res, next) => {
     });
 
     await organization.save();
+
+    // Create OrgConfig snapshot with optional overrides
+    const { 
+      membershipModel: overrideModel, 
+      labels: overrideLabels, 
+      features: overrideFeatures,
+      financial: overrideFinancial 
+    } = req.body;
+
+    const finalModel = overrideModel || nicheType.membershipModel;
+    const idFormat = finalModel === 'individual_only' ? 'member_only' : 'group_member';
+    
+    const orgConfig = new OrgConfig({
+      organizationId: organization._id,
+      nicheTypeKey: nicheType.key,
+      membershipModel: finalModel,
+      labels: overrideLabels || nicheType.labels,
+      features: overrideFeatures ? { ...nicheType.features, ...overrideFeatures } : nicheType.features,
+      financial: overrideFinancial || nicheType.financial,
+      idFormat: { format: idFormat },
+      createdByUserId: req.user.uid
+    });
+
+    await orgConfig.save();
 
     // Create organization admin user
     let adminUser = null;

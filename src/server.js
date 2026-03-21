@@ -3,6 +3,7 @@ const app = require('./app');
 const { connectDatabase } = require('./config/database');
 const logger = require('./utils/logger');
 const { initBillingCron } = require('./services/billingCron');
+const seedNiches = require('./utils/seedNiches');
 
 const PORT = process.env.PORT || 3000;
 
@@ -36,11 +37,14 @@ if (missingEnvVars.length > 0) {
 // Connect to database and start server
 connectDatabase()
   .then(() => {
-    const server = app.listen(PORT, '0.0.0.0', () => {
+    const server = app.listen(PORT, '0.0.0.0', async () => {
       logger.info(`Server started on port ${PORT}`, {
         port: PORT,
         environment: process.env.NODE_ENV || 'development'
       });
+      
+      // Seed initial niche types
+      await seedNiches();
       
       // Initialize background jobs
       initBillingCron();

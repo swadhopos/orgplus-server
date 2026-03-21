@@ -11,11 +11,13 @@ const organizationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: {
-      values: ['housing_society', 'apartment_complex', 'gated_community', 'cooperative_society', 'church', 'mahallu', 'temple', 'other'],
-      message: '{VALUE} is not a valid organization type'
-    },
-    default: 'housing_society'
+    trim: true
+  },
+  nicheTypeKey: {
+    type: String,
+    required: [true, 'Niche type key is required'],
+    trim: true,
+    index: true
   },
   registrationNumber: {
     type: String,
