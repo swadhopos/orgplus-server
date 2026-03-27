@@ -36,23 +36,25 @@ const orgNicheTypeSchema = new mongoose.Schema({
     }
   },
   features: {
+    hasMembers: { type: Boolean, default: true },
     hasGroups: { type: Boolean, default: true },
-    hasCommittees: { type: Boolean, default: true },
-    hasSponsorships: { type: Boolean, default: false },
-    hasNOCIssuance: { type: Boolean, default: false },
-    hasEventRSVP: { type: Boolean, default: false },
-    hasBroadcast: { type: Boolean, default: false },
-    hasMembershipExpiry: { type: Boolean, default: false },
-    hasDuesAutoGeneration: { type: Boolean, default: false },
-    hasDeathRegister: { type: Boolean, default: false },
-    hasMarriageCertificate: { type: Boolean, default: false },
-    hasMarriageNOC: { type: Boolean, default: false },
-    hasLedger: { type: Boolean, default: true },
-    hasCalendar: { type: Boolean, default: true },
-    hasMeetings: { type: Boolean, default: true },
-    hasNotices: { type: Boolean, default: true },
-    hasStaff: { type: Boolean, default: true }
+    hasEvents: { type: Boolean, default: false },
+    hasCommittees: { type: Boolean, default: false },
+    hasBMD: { type: Boolean, default: false },
+    hasSubscriptions: { type: Boolean, default: false },
+    hasNotices: { type: Boolean, default: false },
+    hasLedger: { type: Boolean, default: false },
+    hasStaff: { type: Boolean, default: false },
+    hasCertificates: { type: Boolean, default: false }
   },
+  subtypes: [{
+    label: { type: String, required: true, trim: true },
+    key: { type: String, required: true, trim: true, lowercase: true }
+  }],
+  suggestedColors: [{
+    type: String,
+    match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please provide a valid hex color']
+  }],
   financial: {
     paymentType: {
       type: String,

@@ -4,7 +4,6 @@ const organizationSchema = new mongoose.Schema({
   name: {
     type: String,
     required: [true, 'Organization name is required'],
-    unique: true,
     trim: true,
     minlength: [2, 'Organization name must be at least 2 characters long'],
     maxlength: [200, 'Organization name cannot exceed 200 characters']
@@ -12,6 +11,11 @@ const organizationSchema = new mongoose.Schema({
   type: {
     type: String,
     trim: true
+  },
+  subtype: {
+    type: String,
+    trim: true,
+    maxlength: [100, 'Subtype cannot exceed 100 characters']
   },
   nicheTypeKey: {
     type: String,
@@ -103,6 +107,25 @@ const organizationSchema = new mongoose.Schema({
     type: String,
     trim: true,
     maxlength: [1000, 'Description cannot exceed 1000 characters']
+  },
+  logoUrl: {
+    type: String,
+    default: null,
+    trim: true
+  },
+  logoKey: {
+    type: String,
+    default: null
+  },
+  primaryColor: {
+    type: String,
+    default: '#2563eb', // Default Blue
+    match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please provide a valid hex color']
+  },
+  secondaryColor: {
+    type: String,
+    default: '#1e40af', // Darker Blue
+    match: [/^#([A-Fa-f0-9]{6}|[A-Fa-f0-9]{3})$/, 'Please provide a valid hex color']
   },
   status: {
     type: String,

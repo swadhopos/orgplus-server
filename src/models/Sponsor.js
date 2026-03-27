@@ -15,7 +15,13 @@ const sponsorSchema = new mongoose.Schema({
     eventId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Event',
-        required: [true, 'Event is required'],
+        default: null,
+        index: true
+    },
+    fundraiserId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Fundraiser',
+        default: null,
         index: true
     },
 

@@ -80,6 +80,24 @@ subscriptionSchema.index({ billingStatus: 1, nextBillingDate: 1, isDeleted: 1 })
 
 subscriptionSchema.index({ planId: 1, targetId: 1, isDeleted: 1 });
 
+// Analytics Index
+subscriptionSchema.index({ organizationId: 1, isDeleted: 1, billingStatus: 1, nextBillingDate: 1 });
+
+// Analytics Cache Invalidation
+const markFinancialDirty = (doc) => {
+    if (doc && doc.organizationId) {
+        const analyticsCacheService = require('../services/analyticsCacheService');
+        setImmediate(() => {
+            analyticsCacheService.markDirty(doc.organizationId, 'financial').catch(err => {
+                console.error('[Analytics] Error marking financial cache dirty for org:', doc.organizationId, err);
+            });
+        });
+    }
+};
+
+subscriptionSchema.post('save', function(doc) { markFinancialDirty(doc); });
+subscriptionSchema.post('findOneAndUpdate', function(doc) { markFinancialDirty(doc); });
+
 subscriptionSchema.pre('save', function (next) {
     if (!this.isNew) this.updatedAt = new Date();
     next();

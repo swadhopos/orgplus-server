@@ -15,7 +15,7 @@ const PRIVILEGED_ROLES = ['president', 'vice-president', 'secretary', 'treasurer
 exports.createCommittee = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { name, description, type, status, startDate, endDate, eventId, isMain } = req.body;
+    const { name, description, type, status, startDate, endDate, eventId, fundraiserId, isMain } = req.body;
 
     if (!name || !type) {
       throw new ValidationError('Missing required fields: name, type');
@@ -29,6 +29,7 @@ exports.createCommittee = async (req, res, next) => {
       startDate,
       endDate,
       eventId: eventId || null,
+      fundraiserId: fundraiserId || null,
       isMain: isMain || false,
       organizationId: orgId,
       createdByUserId: req.user.uid
@@ -50,11 +51,12 @@ exports.createCommittee = async (req, res, next) => {
 exports.listCommittees = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { page = 1, limit = 50, eventId } = req.query;
+    const { page = 1, limit = 50, eventId, fundraiserId } = req.query;
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
     const filter = { organizationId: orgId, isDeleted: false, ...req.tenantFilter };
     if (eventId) filter.eventId = eventId;
+    if (fundraiserId) filter.fundraiserId = fundraiserId;
 
     const [committees, total] = await Promise.all([
       Committee.find(filter).skip(skip).limit(parseInt(limit)).sort({ createdAt: -1 }),

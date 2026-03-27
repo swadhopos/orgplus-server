@@ -108,6 +108,21 @@ ledgerSchema.methods.softDelete = function (userId, reason = null) {
     return this.save();
 };
 
+// ── Analytics Cache Invalidation ───────────────────────────────────
+const markFinancialDirty = (doc) => {
+    if (doc && doc.organizationId) {
+        const analyticsCacheService = require('../services/analyticsCacheService');
+        setImmediate(() => {
+            analyticsCacheService.markDirty(doc.organizationId, 'financial').catch(err => {
+                console.error('[Analytics] Error marking financial cache dirty for org:', doc.organizationId, err);
+            });
+        });
+    }
+};
+
+ledgerSchema.post('save', function(doc) { markFinancialDirty(doc); });
+ledgerSchema.post('findOneAndUpdate', function(doc) { markFinancialDirty(doc); });
+
 // ── Static helpers ─────────────────────────────────────────────────
 ledgerSchema.statics.findActive = function (filter = {}) {
     return this.find({ ...filter, 'audit.isDeleted': false });

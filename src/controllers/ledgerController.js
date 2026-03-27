@@ -3,6 +3,7 @@ const Transaction = require('../models/Transaction');
 const Category = require('../models/Category');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
+const { ensureReceiptNumber } = require('./transactionController');
 
 // ─────────────────────────────────────────────────────────────────
 // LEDGER CRUD
@@ -79,6 +80,7 @@ exports.createLedger = async (req, res, next) => {
                 audit: { createdByUserId: req.user.uid }
             });
             await obTx.save();
+            await ensureReceiptNumber(obTx, orgId);
             logger.info('Opening Balance transaction created', {
                 transactionId: obTx._id,
                 ledgerId: ledger._id,
@@ -303,7 +305,7 @@ exports.listTransactions = async (req, res, next) => {
         const total = await Transaction.countDocuments(filter);
 
         const transactions = await Transaction.find(filter)
-            .sort({ date: -1 })
+            .sort({ date: -1, 'audit.createdAt': -1 })
             .skip(skip)
             .limit(parseInt(limit))
             .populate('categoryId', 'name color icon')
@@ -391,6 +393,7 @@ exports.addTransaction = async (req, res, next) => {
         });
 
         await tx.save();
+        await ensureReceiptNumber(tx, orgId);
 
         logger.info('Transaction added to ledger', {
             transactionId: tx._id,
@@ -464,6 +467,7 @@ exports.updateTransaction = async (req, res, next) => {
         tx.audit.history.push({ action: 'updated', byUserId: req.user.uid });
 
         await tx.save();
+        await ensureReceiptNumber(tx, orgId);
 
         logger.info('Transaction updated', {
             transactionId: tx._id,

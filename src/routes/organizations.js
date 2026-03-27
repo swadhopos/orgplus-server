@@ -5,6 +5,19 @@ const capacityCategoryController = require('../controllers/capacityCategoryContr
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/authorize');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
+const multer = require('multer');
+
+// Multer: store in memory, 5MB limit, images only
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image files are allowed'));
+    }
+    cb(null, true);
+  },
+});
 
 // All routes require authentication
 router.use(authenticateToken);
@@ -35,6 +48,7 @@ router.put(
   '/:id',
   requireRole('systemAdmin', 'admin'),
   applyTenantFilter,
+  upload.single('logo'),
   organizationController.updateOrganization
 );
 

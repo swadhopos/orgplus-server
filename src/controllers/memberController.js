@@ -36,7 +36,7 @@ exports.createMember = async (req, res, next) => {
     let household = null;
     let organization = null;
 
-    if (currentHouseholdId) {
+    if (currentHouseholdId && mongoose.Types.ObjectId.isValid(currentHouseholdId)) {
       // Verify household exists in same organization
       household = await Household.findOne({
         _id: currentHouseholdId,
@@ -96,7 +96,7 @@ exports.createMember = async (req, res, next) => {
     let memberNumber = '';
     let nextSequence = 0;
 
-    if (currentHouseholdId) {
+    if (currentHouseholdId && mongoose.Types.ObjectId.isValid(currentHouseholdId)) {
       // Atomically increment member counter for this household
       const updatedHousehold = await Household.findOneAndUpdate(
         { _id: currentHouseholdId, organizationId: orgId },
@@ -129,7 +129,7 @@ exports.createMember = async (req, res, next) => {
       fullName,
       gender,
       dateOfBirth,
-      currentHouseholdId,
+      currentHouseholdId: (currentHouseholdId && mongoose.Types.ObjectId.isValid(currentHouseholdId)) ? currentHouseholdId : undefined,
       maritalStatus,
       mobileNumber,
       email,
@@ -384,7 +384,8 @@ exports.updateMember = async (req, res, next) => {
     if (fullName) member.fullName = fullName;
     if (gender) member.gender = gender;
     if (dateOfBirth) member.dateOfBirth = dateOfBirth;
-    if (currentHouseholdId) member.currentHouseholdId = currentHouseholdId;
+    if (currentHouseholdId && mongoose.Types.ObjectId.isValid(currentHouseholdId)) member.currentHouseholdId = currentHouseholdId;
+    else if (currentHouseholdId === '' || currentHouseholdId === null) member.currentHouseholdId = undefined;
     if (maritalStatus) member.maritalStatus = maritalStatus;
     if (mobileNumber !== undefined) member.mobileNumber = mobileNumber;
     if (email !== undefined) member.email = email;

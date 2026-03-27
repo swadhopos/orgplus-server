@@ -32,22 +32,17 @@ const orgConfigSchema = new mongoose.Schema({
     }
   },
   features: {
-    hasGroups: { type: Boolean, default: true, immutable: true },
-    hasCommittees: { type: Boolean, default: true, immutable: true },
-    hasSponsorships: { type: Boolean, default: false, immutable: true },
-    hasNOCIssuance: { type: Boolean, default: false, immutable: true },
-    hasEventRSVP: { type: Boolean, default: false, immutable: true },
-    hasBroadcast: { type: Boolean, default: false, immutable: true },
-    hasMembershipExpiry: { type: Boolean, default: false, immutable: true },
-    hasDuesAutoGeneration: { type: Boolean, default: false, immutable: true },
-    hasDeathRegister: { type: Boolean, default: false, immutable: true },
-    hasMarriageCertificate: { type: Boolean, default: false, immutable: true },
-    hasMarriageNOC: { type: Boolean, default: false, immutable: true },
-    hasLedger: { type: Boolean, default: true, immutable: true },
-    hasCalendar: { type: Boolean, default: true, immutable: true },
-    hasMeetings: { type: Boolean, default: true, immutable: true },
-    hasNotices: { type: Boolean, default: true, immutable: true },
-    hasStaff: { type: Boolean, default: true, immutable: true }
+    hasMembers: { type: Boolean, default: true, immutable: true }, // Core structural requirement
+    hasGroups: { type: Boolean, default: true, immutable: true }, // Core structural requirement
+    hasEvents: { type: Boolean, default: false, immutable: true }, // Unified Events & Fundraising
+    hasCommittees: { type: Boolean, default: false, immutable: true }, // Finance & Committees
+    hasBMD: { type: Boolean, default: false, immutable: true }, // Birth, Marriage, Death
+    hasSubscriptions: { type: Boolean, default: false, immutable: true }, // Fees & Subscriptions
+    hasNotices: { type: Boolean, default: false, immutable: true }, // Notice Board / Broadcast
+    hasLedger: { type: Boolean, default: false, immutable: true }, // Basic Accounting
+    hasStaff: { type: Boolean, default: false, immutable: true }, // Employee/Staff Management
+    hasCertificates: { type: Boolean, default: false, immutable: true }, // Cert Generation Module
+    hasMembership: { type: Boolean, default: false } // Membership Module
   },
   financial: {
     paymentType: {
@@ -60,6 +55,16 @@ const orgConfigSchema = new mongoose.Schema({
       type: Boolean,
       default: false,
       immutable: true
+    },
+    fiscalYearStartMonth: {
+      type: Number,
+      default: 4,
+      min: 1,
+      max: 12
+    },
+    useCalendarYear: {
+      type: Boolean,
+      default: false
     }
   },
   idFormat: {

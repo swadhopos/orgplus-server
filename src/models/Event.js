@@ -18,6 +18,10 @@ const eventSchema = new mongoose.Schema({
     },
 
     // ── Core ────────────────────────────────────────────────────────────────
+    eventSequence: {
+        type: Number,
+        required: true
+    },
     name: {
         type: String,
         required: [true, 'Event name is required'],

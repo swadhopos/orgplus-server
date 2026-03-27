@@ -6,6 +6,9 @@ const Counter = require('../models/Counter');
 const OrgNicheType = require('../models/OrgNicheType');
 const OrgConfig = require('../models/OrgConfig');
 const { getNextAlphaId } = require('../utils/idGenerator');
+const storage = require('../services/storage');
+const { v4: uuidv4 } = require('uuid');
+const path = require('path');
 
 /**
  * Create a new organization (systemAdmin only)
@@ -13,10 +16,11 @@ const { getNextAlphaId } = require('../utils/idGenerator');
 exports.createOrganization = async (req, res, next) => {
   try {
     const {
-      name, nicheTypeKey, registrationNumber, establishedDate, totalUnits,
+      name, nicheTypeKey, subtype, registrationNumber, establishedDate, totalUnits,
       address, city, state, pincode, country,
       contactEmail, contactPhone, alternatePhone, website, description,
-      status, adminEmail, adminPassword
+      status, adminEmail, adminPassword,
+      primaryColor, secondaryColor
     } = req.body;
 
     // Validate nicheTypeKey
@@ -32,12 +36,6 @@ exports.createOrganization = async (req, res, next) => {
     // Validate required fields
     if (!name || !address || !contactEmail || !contactPhone || !adminEmail || !adminPassword) {
       throw new ValidationError('Missing required fields: name, address, contactEmail, contactPhone, adminEmail, adminPassword');
-    }
-
-    // Check if organization name already exists
-    const existing = await Organization.findOne({ name, isDeleted: false });
-    if (existing) {
-      throw new ValidationError('Organization with this name already exists');
     }
 
     // Generate Organization ID (orgNumber)
@@ -79,6 +77,9 @@ exports.createOrganization = async (req, res, next) => {
       website,
       description,
       status: status || 'active',
+      subtype,
+      primaryColor,
+      secondaryColor,
       orgNumber: nextOrgNumber,
       houseCounter: 0,
       independentMemberCounter: 0,
@@ -218,14 +219,18 @@ exports.getOrganization = async (req, res, next) => {
     }
 
     const organization = await Organization.findOne(filter);
-
     if (!organization) {
       throw new NotFoundError('Organization not found');
     }
 
+    const config = await OrgConfig.findOne({ organizationId: id });
+
     res.json({
       success: true,
-      data: organization
+      data: {
+        ...organization.toObject(),
+        config: config || null
+      }
     });
   } catch (error) {
     next(error);
@@ -238,7 +243,7 @@ exports.getOrganization = async (req, res, next) => {
 exports.updateOrganization = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { name, address, contactEmail, contactPhone, status } = req.body;
+    const { name, address, contactEmail, contactPhone, status, description } = req.body;
 
     // Apply tenant filter
     const filter = { _id: id, isDeleted: false };
@@ -255,8 +260,29 @@ exports.updateOrganization = async (req, res, next) => {
     if (contactEmail) organization.contactEmail = contactEmail;
     if (contactPhone) organization.contactPhone = contactPhone;
     if (status) organization.status = status;
+    if (req.body.subtype !== undefined) organization.subtype = req.body.subtype;
+    if (req.body.primaryColor !== undefined) organization.primaryColor = req.body.primaryColor;
+    if (req.body.secondaryColor !== undefined) organization.secondaryColor = req.body.secondaryColor;
+    if (description) organization.description = description;
+
+    // Handle new logo upload
+    if (req.file) {
+      // Delete old logo if exists
+      if (organization.logoKey) {
+        await storage.delete(organization.logoKey).catch(err => logger.warn('[Organization] Old logo delete failed:', err));
+      }
+      
+      const ext = path.extname(req.file.originalname) || '.jpg';
+      const key = `orgs/${id}/logo_${uuidv4()}${ext}`;
+      const result = await storage.upload(req.file.buffer, key, req.file.mimetype);
+      
+      organization.logoUrl = result.url;
+      organization.logoKey = result.key;
+    }
 
     await organization.save();
+
+    const config = await OrgConfig.findOne({ organizationId: id });
 
     logger.info('Organization updated', {
       organizationId: organization._id,
@@ -265,7 +291,10 @@ exports.updateOrganization = async (req, res, next) => {
 
     res.json({
       success: true,
-      data: organization
+      data: {
+        ...organization.toObject(),
+        config: config || null
+      }
     });
   } catch (error) {
     next(error);

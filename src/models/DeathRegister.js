@@ -82,5 +82,21 @@ deathRegisterSchema.index({ organizationId: 1, status: 1 });
 deathRegisterSchema.index({ memberId: 1 }, { unique: true });
 deathRegisterSchema.index({ householdId: 1 });
 deathRegisterSchema.index({ memberFullName: 'text', memberNumber: 'text', householdNumber: 'text', certificateNumber: 'text' });
+deathRegisterSchema.index({ organizationId: 1, dateOfDeath: 1 }); // Analytics
+
+// Analytics Cache Invalidation
+const markDemographicDirty = (doc) => {
+  if (doc && doc.organizationId) {
+    const analyticsCacheService = require('../services/analyticsCacheService');
+    setImmediate(() => {
+      analyticsCacheService.markDirty(doc.organizationId, 'demographic').catch(err => {
+        console.error('[Analytics] Error marking demographic cache dirty for org:', doc.organizationId, err);
+      });
+    });
+  }
+};
+
+deathRegisterSchema.post('save', function(doc) { markDemographicDirty(doc); });
+deathRegisterSchema.post('findOneAndUpdate', function(doc) { markDemographicDirty(doc); });
 
 module.exports = mongoose.model('DeathRegister', deathRegisterSchema);

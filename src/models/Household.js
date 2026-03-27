@@ -124,10 +124,29 @@ householdSchema.index({ organizationId: 1, isDeleted: 1 });
 householdSchema.index({ headMemberId: 1 });
 householdSchema.index({ houseName: 1, organizationId: 1 });
 
+// Analytics Indexes
+householdSchema.index({ organizationId: 1, isDeleted: 1, status: 1 });
+householdSchema.index({ organizationId: 1, isDeleted: 1, financialStatus: 1 });
+
 // Middleware to update updatedAt
 householdSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
 });
+
+// Analytics Cache Invalidation
+const markDemographicDirty = (doc) => {
+  if (doc && doc.organizationId) {
+    const analyticsCacheService = require('../services/analyticsCacheService');
+    setImmediate(() => {
+      analyticsCacheService.markDirty(doc.organizationId, 'demographic').catch(err => {
+        console.error('[Analytics] Error marking demographic cache dirty for org:', doc.organizationId, err);
+      });
+    });
+  }
+};
+
+householdSchema.post('save', function(doc) { markDemographicDirty(doc); });
+householdSchema.post('findOneAndUpdate', function(doc) { markDemographicDirty(doc); });
 
 module.exports = mongoose.model('Household', householdSchema);

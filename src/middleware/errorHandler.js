@@ -25,9 +25,16 @@ const errorHandler = (err, req, res, next) => {
   let code = err.code || 'INTERNAL_ERROR';
   let message = err.message || 'An unexpected error occurred';
   let details = err.details || null;
-  
+
+  // Handle Mongoose CastError (e.g., invalid ObjectId)
+  if (err.name === 'CastError') {
+    statusCode = 400;
+    code = 'INVALID_ID';
+    message = `Invalid ${err.path}: ${err.value}`;
+  }
+
   // Determine if this is an operational error
-  const isOperational = err.isOperational || false;
+  const isOperational = err.isOperational || (statusCode < 500);
   
   // Log error with request context
   const errorLog = {

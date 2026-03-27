@@ -32,6 +32,10 @@ const capacityCategorySchema = new mongoose.Schema({
     },
     required: [true, 'Target type is required']
   },
+  isMembershipTier: {
+    type: Boolean,
+    default: false
+  },
   tiers: [tierSchema],
   isDeleted: {
     type: Boolean,

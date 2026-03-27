@@ -121,6 +121,15 @@ const transactionSchema = new mongoose.Schema({
         default: 'completed'
     },
     
+    // ── Receipt ────────────────────────────────────────────────────
+    // Generated lazily on first print/share, stored for idempotency
+    receiptNumber: {
+        type: String,
+        default: null,
+        sparse: true,
+        index: true
+    },
+
     // ── Future-Proofing for Payment Gateway ────────────────────────
     externalTransactionId: {
         type: String,
@@ -279,6 +288,29 @@ transactionSchema.statics.summarizeBySource = function (sourceType, sourceId) {
         }
     ]);
 };
+
+// Analytics Indexes
+transactionSchema.index({ organizationId: 1, 'audit.isDeleted': 1, type: 1, status: 1, date: 1 });
+transactionSchema.index({ organizationId: 1, 'audit.isDeleted': 1, sourceType: 1, type: 1 });
+transactionSchema.index({ organizationId: 1, 'audit.isDeleted': 1, type: 1, status: 1, dueDate: 1 });
+transactionSchema.index({ organizationId: 1, 'audit.isDeleted': 1, memberId: 1, status: 1 });
+transactionSchema.index({ organizationId: 1, 'audit.isDeleted': 1, householdId: 1, status: 1 });
+transactionSchema.index({ organizationId: 1, 'audit.isDeleted': 1, 'payment.method': 1 });
+
+// Analytics Cache Invalidation
+const markFinancialDirty = (doc) => {
+    if (doc && doc.organizationId) {
+        const analyticsCacheService = require('../services/analyticsCacheService');
+        setImmediate(() => {
+            analyticsCacheService.markDirty(doc.organizationId, 'financial').catch(err => {
+                console.error('[Analytics] Error marking financial cache dirty for org:', doc.organizationId, err);
+            });
+        });
+    }
+};
+
+transactionSchema.post('save', function(doc) { markFinancialDirty(doc); });
+transactionSchema.post('findOneAndUpdate', function(doc) { markFinancialDirty(doc); });
 
 const Transaction = mongoose.model('Transaction', transactionSchema);
 module.exports = Transaction;

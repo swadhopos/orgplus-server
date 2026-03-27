@@ -39,8 +39,7 @@ exports.getSettings = async (req, res) => {
 exports.updateSettings = async (req, res) => {
     try {
         const { orgId } = req.params;
-        const { approvalSettings } = req.body;
-
+        const { approvalSettings, certificateSettings, receiptSettings } = req.body;
         const update = { updatedByUserId: req.user?.id };
 
         if (approvalSettings) {
@@ -52,6 +51,14 @@ exports.updateSettings = async (req, res) => {
                 }
             }
             update.approvalSettings = approvalSettings;
+        }
+
+        if (certificateSettings) {
+            update.certificateSettings = certificateSettings;
+        }
+
+        if (receiptSettings) {
+            update.receiptSettings = receiptSettings;
         }
 
         const settings = await OrgSettings.findOneAndUpdate(

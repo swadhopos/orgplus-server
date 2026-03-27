@@ -25,6 +25,13 @@ const orgSettingsSchema = new mongoose.Schema({
         marriageCertStyleId:     { type: String, default: 'vertical-classic' }
     },
 
+    // ─── Receipt Style Settings ──────────────────────────────────────────────
+    receiptSettings: {
+        eventReceiptStyleId:  { type: String, default: 'a4-half-modern' },
+        feeReceiptStyleId:    { type: String, default: 'a5-h-modern' },
+        ledgerReceiptStyleId: { type: String, default: 'a4-full-invoice' }
+    },
+
     // ─── BMD Approval Settings ───────────────────────────────────────────────
     // Applied to: Marriage NOC, Death Records, Marriage Certificates
     approvalSettings: {

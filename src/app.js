@@ -24,7 +24,10 @@ const feeRoutes = require('./routes/fees');
 const subscriptionRoutes = require('./routes/subscriptions');
 const categoryRoutes = require('./routes/categories');
 const noticeRoutes = require('./routes/notices');
+const fundraiserRoutes = require('./routes/fundraiserRoutes');
 const nicheTypeRoutes = require('./routes/nicheTypes');
+const transactionRoutes = require('./routes/transactionRoutes');
+const analyticsRoutes = require('./routes/analyticsRoutes');
 
 const app = express();
 
@@ -97,6 +100,13 @@ app.use('/api/admin/niche-types', nicheTypeRoutes);
 // Nested routes under organizations - Protected by Auth and Org Access
 const { authenticateToken } = require('./middleware/auth');
 const { requireOrgAccess } = require('./middleware/authorize');
+const { requireFeature } = require('./middleware/featureAuth');
+
+app.use('/api/organizations/:orgId/analytics',
+  authenticateToken,
+  requireOrgAccess,
+  analyticsRoutes
+);
 
 app.use('/api/organizations/:orgId/households',
   authenticateToken,
@@ -113,6 +123,7 @@ app.use('/api/organizations/:orgId/members',
 app.use('/api/organizations/:orgId/committees',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasCommittees'),
   committeeRoutes
 );
 
@@ -125,25 +136,36 @@ app.use('/api/organizations/:orgId/meetings',
 app.use('/api/organizations/:orgId/deaths',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasBMD'),
   deathRegisterRoutes
 );
 
 app.use('/api/organizations/:orgId/staff',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasStaff'),
   staffRoutes
 );
 
 app.use('/api/organizations/:orgId/ledgers',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasLedger'),
   ledgerRoutes
 );
 
 app.use('/api/organizations/:orgId/events',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasEvents'),
   eventRoutes
+);
+
+app.use('/api/organizations/:orgId/fundraisers',
+  authenticateToken,
+  requireOrgAccess,
+  requireFeature('hasEvents'), // Using 'hasEvents' for both for now
+  fundraiserRoutes
 );
 
 app.use('/api/organizations/:orgId/calendar',
@@ -155,12 +177,14 @@ app.use('/api/organizations/:orgId/calendar',
 app.use('/api/organizations/:orgId/certificates/noc',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasBMD'),
   marriageNocRoutes
 );
 
 app.use('/api/organizations/:orgId/certificates/marriage',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasBMD'),
   marriageCertificateRoutes
 );
 
@@ -173,12 +197,14 @@ app.use('/api/organizations/:orgId/settings',
 app.use('/api/organizations/:orgId/fees',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasSubscriptions'),
   feeRoutes
 );
 
 app.use('/api/organizations/:orgId/subscriptions',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasSubscriptions'),
   subscriptionRoutes
 );
 
@@ -191,7 +217,14 @@ app.use('/api/organizations/:orgId/categories',
 app.use('/api/organizations/:orgId/notices',
   authenticateToken,
   requireOrgAccess,
+  requireFeature('hasNotices'),
   noticeRoutes
+);
+
+app.use('/api/organizations/:orgId/transactions',
+  authenticateToken,
+  requireOrgAccess,
+  transactionRoutes
 );
 
 // Only mount meetings on the organization root

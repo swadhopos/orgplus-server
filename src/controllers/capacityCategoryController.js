@@ -8,16 +8,23 @@ const logger = require('../utils/logger');
 exports.getCapacityCategories = async (req, res, next) => {
   try {
     const { orgId } = req.params;
+    const { isMembershipTier } = req.query;
 
     // Tenant check
     if (req.user.role === 'admin' && req.user.orgId !== orgId) {
       throw new NotFoundError('Organization not found');
     }
 
-    const categories = await CapacityCategory.find({ 
+    const query = { 
       organizationId: orgId, 
       isDeleted: false 
-    }).sort({ createdAt: 1 });
+    };
+
+    if (isMembershipTier !== undefined) {
+      query.isMembershipTier = isMembershipTier === 'true';
+    }
+
+    const categories = await CapacityCategory.find(query).sort({ createdAt: 1 });
 
     res.json({
       success: true,
@@ -49,6 +56,7 @@ exports.addCapacityCategory = async (req, res, next) => {
       organizationId: orgId,
       name,
       targetType,
+      isMembershipTier: req.body.isMembershipTier || false,
       tiers: tiers || [],
       createdByUserId: req.user.uid
     });
@@ -89,6 +97,7 @@ exports.updateCapacityCategory = async (req, res, next) => {
         $set: { 
           name, 
           targetType, 
+          isMembershipTier: req.body.isMembershipTier,
           tiers: tiers || [] 
         } 
       },

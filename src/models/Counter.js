@@ -20,4 +20,17 @@ const counterSchema = new mongoose.Schema({
     }
 });
 
+counterSchema.statics.getNextSequence = async function(orgId, counterType, sequenceField) {
+    const counterId = `${orgId}_${counterType}_${sequenceField}`;
+    const counter = await this.findOneAndUpdate(
+        { _id: counterId },
+        { 
+            $inc: { sequenceValue: 1 },
+            $setOnInsert: { organizationId: orgId }
+        },
+        { new: true, upsert: true }
+    );
+    return counter.sequenceValue;
+};
+
 module.exports = mongoose.model('Counter', counterSchema);

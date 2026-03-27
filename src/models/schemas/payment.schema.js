@@ -62,6 +62,14 @@ const paymentSchema = new mongoose.Schema(
             trim: true,
             maxlength: [300, 'Payment notes cannot exceed 300 characters'],
             default: null
+        },
+
+        // For external / nominal payers (not in the member/household database)
+        payerName: {
+            type: String,
+            trim: true,
+            maxlength: [100, 'Payer name cannot exceed 100 characters'],
+            default: null
         }
     },
     {

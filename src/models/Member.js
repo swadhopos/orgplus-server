@@ -193,10 +193,37 @@ memberSchema.index({ fatherId: 1 });
 memberSchema.index({ motherId: 1 });
 memberSchema.index({ spouseId: 1 });
 
+// Analytics Indexes
+memberSchema.index({ organizationId: 1, isDeleted: 1, status: 1 });
+memberSchema.index({ organizationId: 1, isDeleted: 1, createdAt: 1 });
+memberSchema.index({ organizationId: 1, isDeleted: 1, dateOfBirth: 1, maritalStatus: 1 });
+memberSchema.index({ organizationId: 1, isDeleted: 1, gender: 1 });
+memberSchema.index({ organizationId: 1, isDeleted: 1, 'medicalInfo.bloodGroup': 1 });
+memberSchema.index({ organizationId: 1, isDeleted: 1, isWorkingAbroad: 1, abroadCountry: 1 });
+
 // Middleware to update updatedAt
 memberSchema.pre('save', function (next) {
   this.updatedAt = new Date();
   next();
+});
+
+// Analytics Cache Invalidation
+const markDemographicDirty = (doc) => {
+  if (doc && doc.organizationId) {
+    const analyticsCacheService = require('../services/analyticsCacheService');
+    setImmediate(() => {
+      analyticsCacheService.markDirty(doc.organizationId, 'demographic').catch(err => {
+        console.error('[Analytics] Error marking demographic cache dirty for org:', doc.organizationId, err);
+      });
+    });
+  }
+};
+
+memberSchema.post('save', function(doc) {
+  markDemographicDirty(doc);
+});
+memberSchema.post('findOneAndUpdate', function(doc) {
+  markDemographicDirty(doc);
 });
 
 module.exports = mongoose.model('Member', memberSchema);

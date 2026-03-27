@@ -38,6 +38,12 @@ const committeeSchema = new mongoose.Schema({
     default: null,
     index: true
   },
+  fundraiserId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Fundraiser',
+    default: null,
+    index: true
+  },
   // Main committee flag
   isMain: {
     type: Boolean,

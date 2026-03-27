@@ -4,8 +4,10 @@ const Sponsor = require('../models/Sponsor');
 const Committee = require('../models/Committee');
 const Transaction = require('../models/Transaction');
 const Category = require('../models/Category');
+const Counter = require('../models/Counter');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
+const { ensureReceiptNumber } = require('./transactionController');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -32,8 +34,11 @@ exports.createEvent = async (req, res, next) => {
             throw new ValidationError('Missing required fields: name, startDate');
         }
 
+        const seq = await Counter.getNextSequence(orgId, 'event', 'eventSequence');
+
         const event = new Event({
             organizationId: orgId,
+            eventSequence: seq,
             name,
             description: description || null,
             type: type || 'general',
@@ -277,7 +282,7 @@ exports.createSponsor = async (req, res, next) => {
             amount: Number(amount),
             currency: event.currency || 'INR',
             type: type || 'cash',
-            status: status || 'confirmed',
+            status: status || 'pending',
             notes: notes || null,
             createdByUserId: req.user.uid
         });
@@ -631,6 +636,7 @@ exports.addEventTransaction = async (req, res, next) => {
         });
 
         await tx.save();
+        await ensureReceiptNumber(tx, orgId);
 
         logger.info('Transaction added to event', {
             transactionId: tx._id,
@@ -703,6 +709,7 @@ exports.updateEventTransaction = async (req, res, next) => {
         tx.audit.history.push({ action: 'updated', byUserId: req.user.uid });
 
         await tx.save();
+        await ensureReceiptNumber(tx, orgId);
 
         res.json({ success: true, data: tx });
     } catch (error) {

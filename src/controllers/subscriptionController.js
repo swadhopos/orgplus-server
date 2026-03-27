@@ -4,6 +4,7 @@ const Transaction = require('../models/Transaction');
 const mongoose = require('mongoose');
 const { generateBillingPeriod } = require('../utils/billing');
 const { generateInvoice } = require('../services/subscriptionService');
+const { ensureReceiptNumber } = require('./transactionController');
 
 /**
  * Subscription Controller
@@ -100,7 +101,7 @@ exports.getTargetSubscriptions = async (req, res) => {
             targetId,
             organizationId,
             isDeleted: false
-        }).populate('planId', 'name amount currency type frequency').sort({ createdAt: -1 });
+        }).populate('planId', 'name amount currency type frequency isMembership').sort({ createdAt: -1 });
 
         // Also fetch related invoices
         const subscriptionIds = subscriptions.map(sub => sub._id);
@@ -313,6 +314,7 @@ exports.collectPayment = async (req, res) => {
         });
 
         await transaction.save();
+        await ensureReceiptNumber(transaction, organizationId);
 
         // 3. Update Subscription if ONE_TIME
         if (subscription.planId.type === 'ONE_TIME') {

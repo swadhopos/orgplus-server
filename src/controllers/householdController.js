@@ -162,7 +162,7 @@ exports.createHousehold = async (req, res, next) => {
 exports.listHouseholds = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { page = 1, limit = 10, search } = req.query;
+    const { page = 1, limit = 10, search, status } = req.query;
     const skip = (page - 1) * limit;
 
     // Apply tenant filter
@@ -175,6 +175,10 @@ exports.listHouseholds = async (req, res, next) => {
         { houseName: { $regex: safeSearch, $options: 'i' } },
         { houseNumber: { $regex: safeSearch, $options: 'i' } }
       ];
+    }
+
+    if (status && status !== 'all') {
+      filter.status = status;
     }
 
     // Convert tenant filter householdId mapping to _id for Household queries

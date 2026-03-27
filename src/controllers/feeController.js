@@ -1,5 +1,6 @@
 const FeePlan = require('../models/FeePlan');
 const mongoose = require('mongoose');
+const Counter = require('../models/Counter');
 const { bulkAssignPlanToExistingTargets } = require('../services/subscriptionService');
 
 /**
@@ -19,6 +20,7 @@ exports.getFeePlans = async (req, res) => {
         if (req.query.type) query.type = req.query.type;
         if (req.query.targetAudience) query.targetAudience = req.query.targetAudience;
         if (req.query.isActive !== undefined) query.isActive = req.query.isActive === 'true';
+        if (req.query.isMembership !== undefined) query.isMembership = req.query.isMembership === 'true';
 
         const feePlans = await FeePlan.find(query).sort({ createdAt: -1 });
 
@@ -60,6 +62,8 @@ exports.createFeePlan = async (req, res) => {
         req.body.organizationId = req.user.organizationId;
         req.body.createdByUserId = req.user.id;
         
+        req.body.planSequence = await Counter.getNextSequence(req.user.organizationId, 'feePlan', 'planSequence');
+
         // Handle validation for recurring vs one-time
         if (req.body.type === 'ONE_TIME') {
             req.body.frequency = null;

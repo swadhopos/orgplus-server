@@ -12,6 +12,10 @@ const feePlanSchema = new mongoose.Schema({
         required: [true, 'Organization is required'],
         index: true
     },
+    planSequence: {
+        type: Number,
+        required: true
+    },
     name: {
         type: String,
         required: [true, 'Plan name is required'],
@@ -99,6 +103,11 @@ const feePlanSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
         description: 'If true, the plan will automatically deactivate when all assigned targets have paid'
+    },
+    isMembership: {
+        type: Boolean,
+        default: false,
+        description: 'If true, this plan is treated as a membership type and appears in the Membership module'
     },
     
     // Future-Proofing for Payment Gateway (e.g. Stripe)
