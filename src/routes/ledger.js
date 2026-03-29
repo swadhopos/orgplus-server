@@ -2,12 +2,17 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const ledgerController = require('../controllers/ledgerController');
 const { requireRole } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/permission');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
 
 const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
 
-// All routes require admin, systemAdmin, or an active main committee officer role
-router.use(requireRole('systemAdmin', 'admin', 'orgMember'));
+// All routes require admin, systemAdmin, staff, or an active main committee officer role
+router.use(requireRole('systemAdmin', 'admin', 'staff', 'orgMember'));
+
+// For staff users, require specific permission
+router.use(requirePermission('canManageFinance'));
+
 router.use(requireMainCommitteeAccess);
 
 // All routes apply tenant filtering

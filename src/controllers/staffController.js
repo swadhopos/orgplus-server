@@ -6,11 +6,10 @@ const logger = require('../utils/logger');
 /**
  * Helper to sync Firebase custom claims for a staff member
  */
-const syncStaffClaims = async (uid, orgId, permissions) => {
+const syncStaffClaims = async (uid, orgId) => {
     await setCustomClaims(uid, {
         orgId,
-        role: 'staff',
-        permissions: permissions || []
+        role: 'staff'
     });
 };
 
@@ -27,7 +26,7 @@ exports.createStaff = async (req, res, next) => {
         }
 
         // Check if staff already exists in this org
-        const existingStaff = await Staff.findOne({ email: email.toLowerCase(), organizationId: orgId, isDeleted: false });
+        const existingStaff = await Staff.findOne({ email: email.toLowerCase(), orgId, isDeleted: false });
         if (existingStaff) {
             throw new ConflictError('A staff member with this email already exists in this organization.');
         }
@@ -47,7 +46,7 @@ exports.createStaff = async (req, res, next) => {
         }
 
         // Update Firebase claims
-        await syncStaffClaims(uid, orgId, permissions);
+        await syncStaffClaims(uid, orgId);
 
         // Create staff document
         const staff = new Staff({
@@ -170,9 +169,10 @@ exports.updateStaff = async (req, res, next) => {
 
         await staff.save();
 
-        // Sync claims if permissions changed
+        // Sync claims if needed (currently permissions are in DB, so no sync needed for permission changes)
+        // However, we call it to ensure basic claims are present if this is an older account
         if (permissionsUpdated) {
-            await syncStaffClaims(staff.userId, orgId, staff.permissions);
+            await syncStaffClaims(staff.userId, orgId);
         }
 
         logger.info('Staff member updated', {
@@ -214,7 +214,7 @@ exports.deleteStaff = async (req, res, next) => {
         // For simplicity, we can strip the permissions and change role to 'user' or leave as is if we want soft delete to just remove org access
         // Here we will clear the claims for safety
         try {
-            await setCustomClaims(staff.userId, { orgId: null, role: 'user', permissions: [] });
+            await setCustomClaims(staff.userId, { orgId: null, role: 'user' });
         } catch (claimErr) {
             logger.error('Failed to clear claims on staff delete', { error: claimErr, userId: staff.userId });
         }
@@ -226,6 +226,29 @@ exports.deleteStaff = async (req, res, next) => {
         });
 
         res.status(204).send();
+    } catch (error) {
+        next(error);
+    }
+};
+
+/**
+ * Get current staff member's profile and permissions
+ */
+exports.getStaffMe = async (req, res, next) => {
+    try {
+        const { orgId } = req.params;
+        const uid = req.user.uid;
+
+        const staff = await Staff.findOne({ userId: uid, orgId, isDeleted: false });
+
+        if (!staff) {
+            throw new NotFoundError('Staff profile not found');
+        }
+
+        res.json({
+            success: true,
+            data: staff
+        });
     } catch (error) {
         next(error);
     }

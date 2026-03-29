@@ -3,9 +3,16 @@ const router = express.Router({ mergeParams: true });
 const memberController = require('../controllers/memberController');
 const { authenticateToken } = require('../middleware/auth');
 const { requireRole } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/permission');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
 
 const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
+
+// All routes require admin, systemAdmin, staff, or orgMember role
+router.use(requireRole('systemAdmin', 'admin', 'staff', 'orgMember'));
+
+// For staff, require member management permission
+router.use(requirePermission('canManageMembers'));
 
 // All routes apply tenant filtering
 router.use(applyTenantFilter);

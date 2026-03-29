@@ -71,18 +71,38 @@ const getTransactionStats = async (orgIdObj) => {
                     { $group: { _id: '$type', total: { $sum: '$amount' } } }
                 ],
                 bySource: [
-                    { $match: { status: 'completed', type: 'income', sourceType: { $in: ['Ledger', 'Event', 'Fundraiser', 'Subscription'] } } },
+                    { $match: { status: 'completed', type: 'income', sourceType: { $in: ['ledger', 'event', 'fundraiser', 'subscription'] } } },
                     { $group: { _id: '$sourceType', amount: { $sum: '$amount' }, count: { $sum: 1 } } }
                 ],
                 incomeByCategory: [
                     { $match: { status: 'completed', type: 'income' } },
                     { $group: { _id: '$categoryId', amount: { $sum: '$amount' } } },
+                    {
+                        $lookup: {
+                            from: 'categories',
+                            localField: '_id',
+                            foreignField: '_id',
+                            as: 'catInfo'
+                        }
+                    },
+                    { $unwind: { path: '$catInfo', preserveNullAndEmptyArrays: true } },
+                    { $project: { _id: 1, amount: 1, name: { $ifNull: ['$catInfo.name', 'Uncategorized'] } } },
                     { $sort: { amount: -1 } },
                     { $limit: 10 }
                 ],
                 expenseByCategory: [
                     { $match: { status: 'completed', type: 'expense' } },
                     { $group: { _id: '$categoryId', amount: { $sum: '$amount' } } },
+                    {
+                        $lookup: {
+                            from: 'categories',
+                            localField: '_id',
+                            foreignField: '_id',
+                            as: 'catInfo'
+                        }
+                    },
+                    { $unwind: { path: '$catInfo', preserveNullAndEmptyArrays: true } },
+                    { $project: { _id: 1, amount: 1, name: { $ifNull: ['$catInfo.name', 'Uncategorized'] } } },
                     { $sort: { amount: -1 } },
                     { $limit: 10 }
                 ],
@@ -310,14 +330,14 @@ exports.compute = async (orgId, orgConfig) => {
         },
         monthlyTrend,
         incomeBySource: {
-            ledger: getCountAmt(t.bySource, 'Ledger'),
-            event: getCountAmt(t.bySource, 'Event'),
-            fundraiser: getCountAmt(t.bySource, 'Fundraiser'),
-            subscription: getCountAmt(t.bySource, 'Subscription')
+            membership: getCountAmt(t.bySource, 'subscription'),
+            fees: getCountAmt(t.bySource, 'ledger'),
+            campaigns: getCountAmt(t.bySource, 'fundraiser'),
+            events: getCountAmt(t.bySource, 'event')
         },
-        incomeByCategory: t.incomeByCategory?.map(x => ({ category: x._id, amount: x.amount })) || [],
-        expenseByCategory: t.expenseByCategory?.map(x => ({ category: x._id, amount: x.amount })) || [],
-        paymentMethods: t.paymentMethods?.map(x => ({ method: x._id || 'Unknown', count: x.count, amount: x.amount })) || [],
+        incomeByCategory: t.incomeByCategory?.map(x => ({ category: x.name, amount: x.amount })) || [],
+        expenseByCategory: t.expenseByCategory?.map(x => ({ category: x.name, amount: x.amount })) || [],
+        paymentMethods: t.paymentMethods?.map(x => ({ method: x.method || 'Unknown', count: x.count, amount: x.amount })) || [],
         transactionStatus: {
             completed: getStatCount(t.statusBreakdown, 'completed'),
             pending: getStatCount(t.statusBreakdown, 'pending'),

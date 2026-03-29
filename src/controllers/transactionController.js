@@ -108,7 +108,10 @@ exports.getTransaction = async (req, res, next) => {
             return res.status(404).json({ success: false, error: { message: 'Transaction not found' } });
         }
         
-        const org = await Organization.findById(orgId).select('name orgNumber address contactEmail contactPhone').lean();
+        const org = await Organization.findById(orgId).lean();
+        console.log('--- DEBUG: Organization for Receipt ---');
+        console.log('Org ID:', orgId);
+        console.log('Found Org:', org ? { id: org._id, name: org.name, hasLogo: !!org.logoUrl, logoUrl: org.logoUrl } : 'NOT FOUND');
 
         let sourceEntityLabel = null;
         if (transaction.sourceType === 'event') {

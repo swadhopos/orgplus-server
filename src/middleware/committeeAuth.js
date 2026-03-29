@@ -13,8 +13,9 @@ const PRIVILEGED_ROLES = ['president', 'vice-president', 'secretary', 'treasurer
 
 const requireMainCommitteeAccess = async (req, res, next) => {
   try {
-    // 1. Role Bypass: System and Organization admins bypass all committee checks
-    if (req.user && (req.user.role === 'systemAdmin' || req.user.role === 'admin')) {
+    // 1. Role Bypass: System Admins, Organization Admins, and Staff bypass all committee checks
+    // Staff are authorized via granular permissions instead of committee roles
+    if (req.user && (req.user.role === 'systemAdmin' || req.user.role === 'admin' || req.user.role === 'staff')) {
       return next();
     }
 

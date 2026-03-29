@@ -8,18 +8,21 @@
 const { AuthorizationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 
+const Staff = require('../models/Staff');
+
 /**
  * Middleware factory to require a specific permission
  * 
  * Creates a middleware function that checks if the authenticated user
- * has the required permission in their custom claims.
+ * has the required permission. 
+ * For staff users, it fetches current permissions from MongoDB.
  * Admins implicitly bypass this check.
  * 
  * @param {string} permissionKey - The name of the permission to require (e.g., 'canManageMembers')
  * @returns {Function} Express middleware function
  */
 const requirePermission = (permissionKey) => {
-    return (req, res, next) => {
+    return async (req, res, next) => {
         try {
             // Ensure user is authenticated
             if (!req.user) {
@@ -37,9 +40,35 @@ const requirePermission = (permissionKey) => {
                 return next();
             }
 
-            // If user is 'staff', verify their permissions array
+            // If user is 'staff', verify their permissions from MongoDB
             if (req.user.role === 'staff') {
-                const userPermissions = req.user.permissions || [];
+                const orgId = req.params.orgId || req.user.orgId;
+
+                if (!orgId) {
+                    throw new AuthorizationError('Organization ID context is missing');
+                }
+
+                // Fetch staff document from DB
+                const staff = await Staff.findOne({ 
+                    userId: req.user.uid, 
+                    orgId: orgId,
+                    isDeleted: false 
+                });
+
+                if (!staff) {
+                    logger.warn('Staff record not found for authenticated staff user', {
+                        uid: req.user.uid,
+                        orgId: orgId,
+                        requestId: req.id
+                    });
+                    throw new AuthorizationError('Access denied. Staff record not found.');
+                }
+
+                if (staff.status !== 'active') {
+                    throw new AuthorizationError(`Access denied. Staff account status is ${staff.status}`);
+                }
+
+                const userPermissions = staff.permissions || [];
 
                 if (!userPermissions.includes(permissionKey)) {
                     logger.warn('Staff user lacking required permission', {
@@ -52,8 +81,11 @@ const requirePermission = (permissionKey) => {
                     throw new AuthorizationError(`Access denied. Missing permission: ${permissionKey}`);
                 }
 
+                // Attach permissions to user object for downstream use
+                req.user.permissions = userPermissions;
+
                 // Log successful authorization for staff
-                logger.debug('Staff permission authorized', {
+                logger.debug('Staff permission authorized from DB', {
                     uid: req.user.uid,
                     permissionRequired: permissionKey,
                     requestId: req.id

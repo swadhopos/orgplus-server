@@ -25,7 +25,13 @@ exports.createMember = async (req, res, next) => {
       fatherId,
       motherId,
       spouseId,
-      status
+      status,
+      medicalInfo,
+      isWorkingAbroad,
+      abroadCountry,
+      isDeceased,
+      deathDate,
+      deathCause
     } = req.body;
 
     // Validate required fields
@@ -138,6 +144,12 @@ exports.createMember = async (req, res, next) => {
       motherId,
       spouseId,
       status: status || 'active',
+      medicalInfo,
+      isWorkingAbroad,
+      abroadCountry,
+      isDeceased,
+      deathDate,
+      deathCause,
       organizationId: orgId,
       createdByUserId: req.user.uid
     });
@@ -365,7 +377,13 @@ exports.updateMember = async (req, res, next) => {
       fatherId,
       motherId,
       spouseId,
-      status
+      status,
+      medicalInfo,
+      isWorkingAbroad,
+      abroadCountry,
+      isDeceased,
+      deathDate,
+      deathCause
     } = req.body;
 
     // Apply tenant filter
@@ -394,6 +412,12 @@ exports.updateMember = async (req, res, next) => {
     if (fatherId !== undefined) member.fatherId = fatherId;
     if (motherId !== undefined) member.motherId = motherId;
     if (newSpouseId !== undefined) member.spouseId = newSpouseId;
+    if (medicalInfo !== undefined) member.medicalInfo = medicalInfo;
+    if (isWorkingAbroad !== undefined) member.isWorkingAbroad = isWorkingAbroad;
+    if (abroadCountry !== undefined) member.abroadCountry = abroadCountry;
+    if (isDeceased !== undefined) member.isDeceased = isDeceased;
+    if (deathDate !== undefined) member.deathDate = deathDate;
+    if (deathCause !== undefined) member.deathCause = deathCause;
     if (req.body.capacityOverrides !== undefined) member.capacityOverrides = req.body.capacityOverrides;
 
     await member.save();

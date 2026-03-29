@@ -2,12 +2,17 @@ const express = require('express');
 const router = express.Router({ mergeParams: true });
 const ctrl = require('../controllers/eventController');
 const { requireRole } = require('../middleware/authorize');
+const { requirePermission } = require('../middleware/permission');
 const { applyTenantFilter } = require('../middleware/tenantFilter');
 
 const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
 
 // All event routes require admin role or main committee officer access
-router.use(requireRole('systemAdmin', 'admin', 'orgMember'));
+router.use(requireRole('systemAdmin', 'admin', 'staff', 'orgMember'));
+
+// For staff, require event management permission
+router.use(requirePermission('canManageEvents'));
+
 router.use(requireMainCommitteeAccess);
 router.use(applyTenantFilter);
 

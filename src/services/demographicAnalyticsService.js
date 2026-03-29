@@ -107,8 +107,7 @@ const getDemographicStats = async (orgId) => {
                 workingAbroad: [
                     { $match: { isWorkingAbroad: true } },
                     { $group: { _id: '$abroadCountry', count: { $sum: 1 } } },
-                    { $sort: { count: -1 } },
-                    { $limit: 5 }
+                    { $sort: { count: -1 } }
                 ],
                 occupations: [
                     { $match: { occupation: { $nin: [null, '', 'N/A'] } } },

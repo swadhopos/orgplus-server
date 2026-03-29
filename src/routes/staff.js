@@ -5,8 +5,11 @@ const { requireRole } = require('../middleware/authorize');
 
 const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
 
-// Only Admins or Main Committee Officers can manage staff
-router.use(requireRole('systemAdmin', 'admin', 'orgMember'));
+// GET /api/organizations/:orgId/staff/me (Current staff profile)
+// This must be BEFORE other routes that might conflict with ':id'
+router.get('/me', staffController.getStaffMe);
+
+// Only Admins or Main Committee Officers can manage other staff
 router.use(requireMainCommitteeAccess);
 
 /**
