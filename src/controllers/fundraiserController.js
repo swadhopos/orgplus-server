@@ -25,7 +25,7 @@ function paginate(page, limit) {
 exports.createFundraiser = async (req, res, next) => {
     try {
         const { orgId } = req.params;
-        const { name, description, type, status, goalAmount, currency, startDate, endDate, visibility } = req.body;
+        const { name, description, type, status, goalAmount, currency, startDate, endDate, visibility, upiAddress } = req.body;
 
         if (!name || !goalAmount || !startDate) {
             throw new ValidationError('Missing required fields: name, goalAmount, startDate');
@@ -42,6 +42,7 @@ exports.createFundraiser = async (req, res, next) => {
             startDate,
             endDate: endDate || null,
             visibility: visibility || 'public',
+            upiAddress: upiAddress || null,
             createdByUserId: req.user.uid
         });
 
@@ -299,6 +300,7 @@ exports.createPledge = async (req, res, next) => {
             type: type || 'cash',
             status: status || 'pending', // Default to pending for new pledges
             notes: notes || null,
+            entrySource: 'org',
             createdByUserId: req.user.uid
         });
 

@@ -161,6 +161,12 @@ const memberSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  verificationStatus: {
+    type: String,
+    enum: ['pending', 'verified', 'rejected'],
+    default: 'pending',
+    index: true
+  },
 
   // Soft delete
   isDeleted: {

@@ -14,7 +14,7 @@ const { ensureReceiptNumber } = require('./transactionController');
 // Assign a fee plan to a target
 exports.assignPlan = async (req, res) => {
     try {
-        const { planId, targetId, targetType, startDate } = req.body;
+        const { planId, targetId, targetType, startDate, upiAddress } = req.body;
         const organizationId = req.user.organizationId;
         const createdByUserId = req.user.id;
 
@@ -73,6 +73,7 @@ exports.assignPlan = async (req, res) => {
             targetType,
             startDate: parsedStartDate,
             nextBillingDate,
+            upiAddress: upiAddress || null,
             createdByUserId
         });
 

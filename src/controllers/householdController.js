@@ -115,6 +115,7 @@ exports.createHousehold = async (req, res, next) => {
         userId: userId,
         currentHouseholdId: household._id,
         status: 'active',
+        verificationStatus: 'verified',
         organizationId: orgId,
         createdByUserId: req.user.uid
       });

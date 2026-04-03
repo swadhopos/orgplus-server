@@ -95,8 +95,10 @@ async function processBatch(subscriptions, batchNumber) {
             let dueDate = null;
             if (plan.type === 'ONE_TIME' && plan.dueDate) {
                 dueDate = plan.dueDate;
-            } else if (plan.type === 'RECURRING' && plan.gracePeriodDays) {
-                dueDate = new Date(nextBilling.getTime() + plan.gracePeriodDays * 24 * 60 * 60 * 1000);
+            } else if (plan.type === 'RECURRING') {
+                // Default to nextBillingDate if no grace period given
+                const graceDays = plan.gracePeriodDays || 0;
+                dueDate = new Date(nextBilling.getTime() + graceDays * 24 * 60 * 60 * 1000);
             }
 
             // Create Transaction doc

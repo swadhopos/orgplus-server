@@ -63,6 +63,12 @@ const subscriptionSchema = new mongoose.Schema({
         default: 'manual'
     },
 
+    upiAddress: {
+        type: String,
+        trim: true,
+        default: null
+    },
+
     // Audit
     createdByUserId: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },

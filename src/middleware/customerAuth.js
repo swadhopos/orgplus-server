@@ -1,5 +1,5 @@
 const { admin } = require('../config/firebase');
-const { UnauthorizedError } = require('../utils/errors');
+const { AuthenticationError, AuthorizationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 
 /**
@@ -10,7 +10,7 @@ exports.requireCustomerAuth = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      throw new UnauthorizedError('No authentication token provided');
+      throw new AuthenticationError('No authentication token provided');
     }
 
     const token = authHeader.split('Bearer ')[1];
@@ -21,7 +21,7 @@ exports.requireCustomerAuth = async (req, res, next) => {
     // Check for the specific member custom claim
     if (decodedToken.role !== 'orgMember') {
       logger.warn('Forbidden member access attempt', { uid: decodedToken.uid, role: decodedToken.role });
-      throw new UnauthorizedError('Access restricted to members only. Invalid role.');
+      throw new AuthorizationError('Access restricted to members only. Invalid role.');
     }
 
     // Attach user info to request
@@ -35,6 +35,9 @@ exports.requireCustomerAuth = async (req, res, next) => {
 
     next();
   } catch (error) {
-    next(new UnauthorizedError(error.message || 'Invalid or expired authentication token'));
+    if (error instanceof AuthenticationError || error instanceof AuthorizationError) {
+      return next(error);
+    }
+    next(new AuthenticationError(error.message || 'Invalid or expired authentication token'));
   }
 };

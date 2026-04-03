@@ -83,6 +83,13 @@ const fundraiserSchema = new mongoose.Schema({
         default: null
     },
 
+    // ── Payment ─────────────────────────────────────────────────────────────
+    upiAddress: {
+        type: String,
+        trim: true,
+        default: null
+    },
+
     // ── Audit ─────────────────────────────────────────────────────────────────
     createdByUserId: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },

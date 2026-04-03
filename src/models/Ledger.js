@@ -73,6 +73,12 @@ const ledgerSchema = new mongoose.Schema({
     },
 
     // ── Audit ──────────────────────────────────────────────────────
+    upiAddress: {
+        type: String,
+        trim: true,
+        default: null
+    },
+
     audit: {
         type: auditSchema,
         default: () => ({})

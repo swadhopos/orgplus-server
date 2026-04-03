@@ -41,7 +41,7 @@ exports.createLedger = async (req, res, next) => {
         const {
             name, description,
             fiscalYearStart, fiscalYearEnd,
-            openingBalance, currency
+            openingBalance, currency, upiAddress
         } = req.body;
 
         if (!name) throw new ValidationError('Ledger name is required');
@@ -56,6 +56,7 @@ exports.createLedger = async (req, res, next) => {
             fiscalYearEnd: fiscalYearEnd || null,
             openingBalance: parsedOpeningBalance,
             currency: currency || 'INR',
+            upiAddress: upiAddress || null,
             status: 'open',
             audit: { createdByUserId: req.user.uid }
         });
@@ -134,7 +135,7 @@ exports.updateLedger = async (req, res, next) => {
         const {
             name, description,
             fiscalYearStart, fiscalYearEnd,
-            openingBalance, currency, status
+            openingBalance, currency, status, upiAddress
         } = req.body;
 
         const ledger = await Ledger.findOne({
@@ -152,6 +153,7 @@ exports.updateLedger = async (req, res, next) => {
         if (openingBalance !== undefined) ledger.openingBalance = openingBalance;
         if (currency !== undefined) ledger.currency = currency;
         if (status !== undefined) ledger.status = status;
+        if (upiAddress !== undefined) ledger.upiAddress = upiAddress;
 
         ledger.audit.updatedByUserId = req.user.uid;
         ledger.audit.updatedAt = new Date();

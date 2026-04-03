@@ -57,6 +57,7 @@ exports.getDashboardSummary = asyncHandler(async (req, res) => {
         demographicCards: {
             totalMembers: dData.population?.total || 0,
             activeMembers: dData.population?.active || 0,
+            pendingMembers: dData.population?.pending || 0,
             totalHouseholds: dData.households?.total, // omitted by client if undefined natively
             activeHouseholds: dData.households?.active
         },

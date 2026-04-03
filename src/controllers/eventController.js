@@ -28,7 +28,7 @@ function paginate(page, limit) {
 exports.createEvent = async (req, res, next) => {
     try {
         const { orgId } = req.params;
-        const { name, description, type, status, startDate, endDate, location, budget, currency } = req.body;
+        const { name, description, type, status, startDate, endDate, location, budget, currency, upiAddress } = req.body;
 
         if (!name || !startDate) {
             throw new ValidationError('Missing required fields: name, startDate');
@@ -48,6 +48,7 @@ exports.createEvent = async (req, res, next) => {
             location: location || null,
             budget: budget != null ? Number(budget) : null,
             currency: currency || 'INR',
+            upiAddress: upiAddress || null,
             createdByUserId: req.user.uid
         });
 
@@ -147,7 +148,7 @@ exports.getEvent = async (req, res, next) => {
 exports.updateEvent = async (req, res, next) => {
     try {
         const { orgId, id } = req.params;
-        const { name, description, type, status, startDate, endDate, location, budget, currency, committeeId } = req.body;
+        const { name, description, type, status, startDate, endDate, location, budget, currency, committeeId, upiAddress } = req.body;
 
         const event = await Event.findOne({ _id: id, organizationId: orgId, isDeleted: false });
         if (!event) throw new NotFoundError('Event not found');
@@ -162,6 +163,7 @@ exports.updateEvent = async (req, res, next) => {
         if (budget !== undefined) event.budget = budget != null ? Number(budget) : null;
         if (currency !== undefined) event.currency = currency;
         if (committeeId !== undefined) event.committeeId = committeeId;
+        if (upiAddress !== undefined) event.upiAddress = upiAddress;
 
         await event.save();
 
@@ -284,6 +286,7 @@ exports.createSponsor = async (req, res, next) => {
             type: type || 'cash',
             status: status || 'pending',
             notes: notes || null,
+            entrySource: 'org',
             createdByUserId: req.user.uid
         });
 

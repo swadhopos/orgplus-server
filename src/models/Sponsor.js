@@ -125,6 +125,15 @@ const sponsorSchema = new mongoose.Schema({
     voidedByUserId: { type: String, default: null },
 
     // ── Audit ──
+    entrySource: {
+        type: String,
+        enum: {
+            values: ['org', 'member', 'public'],
+            message: '{VALUE} is not a valid entry source'
+        },
+        default: 'org',
+        index: true
+    },
     createdByUserId: { type: String, required: true },
     createdAt: { type: Date, default: Date.now },
     updatedAt: { type: Date, default: Date.now },

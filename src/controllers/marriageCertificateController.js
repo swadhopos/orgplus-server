@@ -68,6 +68,7 @@ async function applyMemberSideEffects(certificate, orgId, issuedByUserId) {
             maritalStatus: 'married',
             spouseId: spouseAId,
             status: 'active',
+            verificationStatus: 'verified',
             createdByUserId: issuedByUserId
         });
         await newMember.save();

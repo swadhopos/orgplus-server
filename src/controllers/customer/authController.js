@@ -1,6 +1,6 @@
 const { admin } = require('../../config/firebase');
 const Member = require('../../models/Member');
-const { UnauthorizedError, NotFoundError } = require('../../utils/errors');
+const { AuthenticationError, AuthorizationError, NotFoundError } = require('../../utils/errors');
 const logger = require('../../utils/logger');
 
 /**
@@ -11,14 +11,14 @@ exports.login = async (req, res, next) => {
     const { idToken } = req.body;
     
     if (!idToken) {
-      throw new UnauthorizedError('Token is required');
+      throw new AuthenticationError('Token is required');
     }
 
     const decodedToken = await admin.auth().verifyIdToken(idToken);
     
     if (decodedToken.role !== 'orgMember') {
       logger.warn('Unauthorized login attempt by non-member', { uid: decodedToken.uid });
-      throw new UnauthorizedError('Access restricted to members only.');
+      throw new AuthorizationError('Access restricted to members only.');
     }
 
     const member = await Member.findOne({ userId: decodedToken.uid, isDeleted: false })
@@ -39,7 +39,10 @@ exports.login = async (req, res, next) => {
     });
 
   } catch (error) {
-    next(new UnauthorizedError(error.message || 'Invalid authentication token'));
+    if (error instanceof AuthenticationError || error instanceof AuthorizationError || error instanceof NotFoundError) {
+      return next(error);
+    }
+    next(new AuthenticationError(error.message || 'Invalid authentication token'));
   }
 };
 

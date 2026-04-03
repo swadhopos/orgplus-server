@@ -14,6 +14,7 @@ const getGrowthTrend = async (orgId) => {
             $match: { 
                 organizationId: orgId, 
                 isDeleted: false,
+                verificationStatus: 'verified',
                 createdAt: { $gte: twelveMonthsAgo }
             } 
         },
@@ -53,7 +54,7 @@ const getDemographicStats = async (orgId) => {
     const today = new Date();
     const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
 
-    const matchStage = { organizationId: orgId, isDeleted: false };
+    const matchStage = { organizationId: orgId, isDeleted: false, verificationStatus: 'verified' };
 
     // Big facet query for members
     const [result] = await Member.aggregate([
@@ -138,6 +139,10 @@ const getDemographicStats = async (orgId) => {
                             withVerifiedRelationships: { $sum: { $cond: [{ $eq: ['$isRelationshipVerified', true] }, 1, 0] } }
                         }
                     }
+                ],
+                pendingCount: [
+                    { $match: { organizationId: orgId, isDeleted: false, verificationStatus: 'pending' } },
+                    { $count: 'count' }
                 ]
             }
         }
@@ -228,6 +233,7 @@ exports.compute = async (orgId, orgConfig) => {
             inactive: getCount(data.statusBreakdown, 'inactive'),
             relocated: getCount(data.statusBreakdown, 'relocated'),
             deceased: getCount(data.statusBreakdown, 'deceased'),
+            pending: data.pendingCount?.[0]?.count || 0,
             newThisMonth: data.newThisMonth?.[0]?.count || 0,
             growthTrend
         },

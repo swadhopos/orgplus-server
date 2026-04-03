@@ -31,6 +31,11 @@ router.use(requireMainCommitteeAccess);
 router.post('/', memberController.createMember);
 
 
+// Triage routes
+router.get('/triage', memberController.getPendingMembers);
+router.post('/:id/admit', memberController.admitMember);
+router.post('/:id/reject', memberController.rejectMember);
+
 // List members
 router.get('/', memberController.listMembers);
 

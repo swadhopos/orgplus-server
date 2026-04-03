@@ -150,6 +150,7 @@ exports.createMember = async (req, res, next) => {
       isDeceased,
       deathDate,
       deathCause,
+      verificationStatus: 'verified',
       organizationId: orgId,
       createdByUserId: req.user.uid
     });
@@ -490,8 +491,9 @@ exports.deleteMember = async (req, res, next) => {
   }
 };
 
+
 /**
- * Update FCM token for multi-device support
+ * Register FCM token for multi-device support
  * Upserts token by deviceId in the fcmTokens array.
  */
 exports.updateFcmToken = async (req, res, next) => {
@@ -571,6 +573,111 @@ exports.removeFcmToken = async (req, res, next) => {
     res.json({
       success: true,
       message: 'FCM token removed successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * List pending members for triage
+ */
+exports.getPendingMembers = async (req, res, next) => {
+  try {
+    const { orgId } = req.params;
+
+    const members = await Member.find({
+      organizationId: orgId,
+      verificationStatus: 'pending',
+      isDeleted: false
+    })
+    .populate('currentHouseholdId', 'houseName houseNumber')
+    .populate('fatherId', 'fullName mobileNumber')
+    .populate('motherId', 'fullName mobileNumber')
+    .sort({ createdAt: -1 })
+    .lean();
+
+    res.json({
+      success: true,
+      data: members
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admit a pending member
+ */
+exports.admitMember = async (req, res, next) => {
+  try {
+    const { orgId, id } = req.params;
+
+    const member = await Member.findOneAndUpdate(
+      { _id: id, organizationId: orgId, isDeleted: false },
+      { 
+        $set: { 
+          verificationStatus: 'verified',
+          status: 'active'
+        } 
+      },
+      { new: true }
+    );
+
+    if (!member) {
+      throw new NotFoundError('Member not found');
+    }
+
+    logger.info('Member admitted', {
+      memberId: member._id,
+      organizationId: orgId,
+      admittedBy: req.user.uid
+    });
+
+    res.json({
+      success: true,
+      data: member
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Reject a pending member
+ */
+exports.rejectMember = async (req, res, next) => {
+  try {
+    const { orgId, id } = req.params;
+
+    const member = await Member.findOneAndUpdate(
+      { _id: id, organizationId: orgId, isDeleted: false },
+      { 
+        $set: { 
+          verificationStatus: 'rejected',
+          status: 'inactive',
+          isDeleted: true,
+          deletedAt: new Date(),
+          deletedByUserId: req.user.uid,
+          deletionReason: 'Rejected during triage admission'
+        } 
+      },
+      { new: true }
+    );
+
+    if (!member) {
+      throw new NotFoundError('Member not found');
+    }
+
+    logger.info('Member rejected', {
+      memberId: member._id,
+      organizationId: orgId,
+      rejectedBy: req.user.uid
+    });
+
+    res.json({
+      success: true,
+      message: 'Member admission rejected successfully'
     });
   } catch (error) {
     next(error);
