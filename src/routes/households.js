@@ -21,6 +21,9 @@ router.use(applyTenantFilter);
 // Create household
 router.post('/', householdController.createHousehold);
 
+// Create household via survey (bulk members)
+router.post('/survey', householdController.createHouseholdSurvey);
+
 // List households
 router.get('/', householdController.listHouseholds);
 

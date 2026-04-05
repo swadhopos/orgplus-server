@@ -6,6 +6,8 @@ const Counter = require('../models/Counter');
 const { NotFoundError, ValidationError } = require('../utils/errors');
 const logger = require('../utils/logger');
 const { autoAssignPlansToNewTarget } = require('../services/subscriptionService');
+const OrgConfig = require('../models/OrgConfig');
+const { admin } = require('../config/firebase');
 
 /**
  * Create a new member with relationship validation
@@ -156,6 +158,48 @@ exports.createMember = async (req, res, next) => {
     });
 
     await member.save();
+
+    // 3. Create Firebase Login if requested and allowed
+    const { createLogin, password } = req.body;
+    if (createLogin && password && email) {
+      // Check if organization allows individual logins
+      const orgConfig = await OrgConfig.findOne({ organizationId: orgId });
+      const isGroupRequired = orgConfig?.membershipModel === 'group_required';
+
+      if (!isGroupRequired) {
+        try {
+          const userRecord = await admin.auth().createUser({
+            email,
+            password,
+            emailVerified: false,
+            displayName: fullName
+          });
+
+          // Set Custom Claims (role: 'orgMember' is required for Customer PWA)
+          await admin.auth().setCustomUserClaims(userRecord.uid, {
+            role: 'orgMember',
+            orgId: orgId,
+            memberId: member._id.toString(),
+            householdId: currentHouseholdId ? currentHouseholdId.toString() : null
+          });
+
+          // Link Firebase UID to Member record
+          member.userId = userRecord.uid;
+          await member.save();
+
+          logger.info('Firebase user created for independent member', {
+            memberId: member._id,
+            uid: userRecord.uid,
+            orgId
+          });
+        } catch (authError) {
+          logger.error('Failed to create Firebase user for member', {
+            memberId: member._id,
+            error: authError.message
+          });
+        }
+      }
+    }
     
     // Two-way spouse link
     if (spouseId) {

@@ -158,6 +158,151 @@ exports.createHousehold = async (req, res, next) => {
 };
 
 /**
+ * Bulk create a household and multiple members (Survey Mode)
+ */
+exports.createHouseholdSurvey = async (req, res, next) => {
+  try {
+    const { orgId } = req.params;
+    const { 
+      household: householdData, 
+      members: membersData,
+      // For the head account
+      email, 
+      password 
+    } = req.body;
+
+    if (!householdData || !householdData.houseName) {
+      throw new ValidationError('Household name is required');
+    }
+
+    if (!membersData || !Array.isArray(membersData) || membersData.length === 0) {
+      throw new ValidationError('At least one member is required');
+    }
+
+    // 1. Verify organization and increment houseCounter
+    const organization = await Organization.findOneAndUpdate(
+      { _id: orgId, isDeleted: false },
+      { $inc: { houseCounter: 1 } },
+      { new: true }
+    );
+
+    if (!organization) {
+      throw new NotFoundError('Organization not found');
+    }
+
+    const generatedHouseNumber = `${organization.orgNumber}-${organization.houseCounter}`;
+
+    // 2. Create the Household
+    const household = new Household({
+      ...householdData,
+      houseNumber: generatedHouseNumber,
+      memberCounter: 0,
+      organizationId: orgId,
+      createdByUserId: req.user.uid,
+      status: householdData.status || 'active'
+    });
+
+    await household.save();
+
+    // Trigger auto-assignment for Household
+    autoAssignPlansToNewTarget(orgId, household._id, 'HOUSEHOLD', req.user.uid).catch(err => 
+      console.error('Failed auto-assigning plans to new household:', err)
+    );
+
+    const createdMembers = [];
+    let headMember = null;
+    let userId = null;
+
+    // 3. Create Firebase user for the head if credentials provided
+    if (email && password) {
+      try {
+        const userRecord = await admin.auth().createUser({
+          email,
+          password,
+          emailVerified: false
+        });
+        userId = userRecord.uid;
+      } catch (error) {
+        if (error.code === 'auth/email-already-exists') {
+          throw new ValidationError('Email already exists');
+        }
+        throw error;
+      }
+    }
+
+    // 4. Create all members
+    for (let i = 0; i < membersData.length; i++) {
+      const mData = membersData[i];
+      household.memberCounter += 1;
+      const memberNumber = `${generatedHouseNumber}-${household.memberCounter}`;
+
+      const member = new Member({
+        ...mData,
+        memberSequence: household.memberCounter,
+        memberNumber,
+        currentHouseholdId: household._id,
+        organizationId: orgId,
+        createdByUserId: req.user.uid,
+        status: mData.status || 'active',
+        verificationStatus: 'verified' // Survey members are added by admins/staff, so verified
+      });
+
+      // Link head member userId if this is the head
+      if (mData.isHead && userId) {
+        member.userId = userId;
+        member.email = email;
+      }
+
+      await member.save();
+      createdMembers.push(member);
+
+      if (mData.isHead) {
+        headMember = member;
+      }
+
+      // Trigger auto-assignment for Member
+      autoAssignPlansToNewTarget(orgId, member._id, 'MEMBER', req.user.uid).catch(err => 
+        console.error('Failed auto-assigning plans up to new member:', err)
+      );
+    }
+
+    // 5. Update household with headMemberId and save memberCounter
+    if (headMember) {
+      household.headMemberId = headMember._id;
+    }
+    await household.save();
+
+    // 6. Set custom claims for the created user
+    if (userId && headMember) {
+      await admin.auth().setCustomUserClaims(userId, {
+        role: 'orgMember',
+        orgId: orgId,
+        householdId: household._id.toString(),
+        memberId: headMember._id.toString()
+      });
+    }
+
+    logger.info('Household Survey created successfully', {
+      householdId: household._id,
+      memberCount: createdMembers.length,
+      organizationId: orgId,
+      createdBy: req.user.uid
+    });
+
+    res.status(201).json({
+      success: true,
+      data: {
+        household,
+        members: createdMembers,
+        userId: userId
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * List households (with tenant filtering)
  */
 exports.listHouseholds = async (req, res, next) => {
