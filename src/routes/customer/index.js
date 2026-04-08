@@ -41,10 +41,13 @@ router.get('/payments/history', noCache, paymentController.getPaymentHistory);
 
 // Events & Fundraisers
 router.get('/events', eventController.getActiveEvents);
+router.get('/events/:id/pledges', eventController.getEventPledges);
 router.post('/events/:id/pledge', eventController.pledgeEvent);
 
 // Member & Household
 const householdController = require('../../controllers/customer/householdController');
+const legalRoutes = require('./legalRoutes');
+
 router.get('/profile', memberController.getProfile);
 router.get('/profile/household', memberController.getHouseholdMembers);
 router.patch('/profile', memberController.updateProfile);
@@ -52,5 +55,8 @@ router.post('/members', memberController.createMember);
 router.patch('/members/:id', memberController.updateMember);
 router.get('/household/my-group', householdController.getGroupDetails);
 router.patch('/household/my-group', householdController.updateHousehold);
+
+// Legal & FAQ
+router.use('/legal', legalRoutes);
 
 module.exports = router;

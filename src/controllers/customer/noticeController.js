@@ -20,16 +20,17 @@ exports.getNotices = async (req, res, next) => {
       .lean();
     const committeeIds = committees.map(c => c.committeeId);
 
+    const { history } = req.query;
+    
     // 2. Query notices based on audience targeting
     const query = {
       organizationId: orgId,
-      status: 'published',
+      status: history === 'true' ? 'archived' : 'published',
       isDeleted: false,
       $or: [
         { audienceType: 'all' },
         { audienceType: 'household', targetIds: householdId },
         { audienceType: 'committee', targetIds: { $in: committeeIds } }
-        // Note: 'ward' and 'payment_*' audience types can be added as logic expands
       ]
     };
 

@@ -158,7 +158,26 @@ const getHouseholdStats = async (orgId) => {
             $facet: {
                 statusBreakdown: [{ $group: { _id: '$status', count: { $sum: 1 } } }],
                 financialStatus: [{ $group: { _id: '$financialStatus', count: { $sum: 1 } } }],
-                total: [{ $count: 'count' }]
+                total: [{ $count: 'count' }],
+                byWard: [
+                    { $match: { panchayatMunicipality: { $nin: [null, ''] }, ward: { $nin: [null, ''] } } },
+                    {
+                        $group: {
+                            _id: { panchayat: '$panchayatMunicipality', ward: '$ward' },
+                            households: { $sum: 1 },
+                            members: { $sum: '$memberCounter' }
+                        }
+                    },
+                    {
+                        $group: {
+                            _id: '$_id.panchayat',
+                            wards: { $push: { ward: '$_id.ward', households: '$households', members: '$members' } },
+                            totalHouseholds: { $sum: '$households' },
+                            totalMembers: { $sum: '$members' }
+                        }
+                    },
+                    { $sort: { '_id': 1 } }
+                ]
             }
         }
     ]);
@@ -318,7 +337,8 @@ exports.compute = async (orgId, orgConfig) => {
                 APL: getCount(hRes.result.financialStatus, 'apl'),
                 BPL: getCount(hRes.result.financialStatus, 'bpl'),
                 None: getCount(hRes.result.financialStatus, 'none', getCount(hRes.result.financialStatus, ''))
-            }
+            },
+            wardReports: hRes.result.byWard || []
         };
     }
 

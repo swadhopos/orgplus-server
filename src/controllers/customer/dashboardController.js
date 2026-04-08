@@ -17,7 +17,7 @@ exports.getDashboardSummary = async (req, res, next) => {
 
     // 1. Core Data
     const orgPromise = Organization.findOne({ _id: orgId, isDeleted: false })
-      .select('name primaryColor secondaryColor logoUrl type')
+      .select('name primaryColor secondaryColor logoUrl type address city state pincode contactEmail contactPhone alternatePhone whatsappNumber socialLinks')
       .lean();
 
     const configPromise = OrgConfig.findOne({ organizationId: orgId }).select('labels').lean();
@@ -165,32 +165,7 @@ exports.getDashboardSummary = async (req, res, next) => {
       });
     });
 
-    // 6. TEMP: Inject Mock Data for Verification (Remove after review)
-    if (urgentItems.length === 0) {
-      urgentItems.push({
-        id: 'mock-1',
-        type: 'payment',
-        title: 'Maintenance Fee',
-        highlight: 'Due in 2 days',
-        actionLabel: 'Pay Now'
-      });
-      urgentItems.push({
-        id: 'mock-2',
-        type: 'event',
-        title: 'Community Gala',
-        highlight: 'Starts 24 Oct',
-        actionLabel: 'Details'
-      });
-      urgentItems.push({
-        id: 'mock-3',
-        type: 'fundraiser',
-        title: 'Building Fund',
-        highlight: 'Goal: INR 50k',
-        actionLabel: 'Donate'
-      });
-    }
-
-    // Final Sort: payments first, then events, then fundraisers
+    // 6. Final Sort: payments first, then events, then fundraisers
     urgentItems.sort((a, b) => {
       const priority = { payment: 1, event: 2, fundraiser: 3 };
       return priority[a.type] - priority[b.type];
@@ -212,6 +187,14 @@ exports.getDashboardSummary = async (req, res, next) => {
         pendingFees: pendingFeeCount,
         recentActivity: recentTransactions,
         urgentItems: urgentItems,
+        orgInfo: {
+          address: `${org?.address}${org?.city ? `, ${org.city}` : ''}${org?.state ? `, ${org.state}` : ''}${org?.pincode ? ` - ${org.pincode}` : ''}`,
+          email: org?.contactEmail,
+          phone: org?.contactPhone,
+          alternatePhone: org?.alternatePhone,
+          whatsapp: org?.whatsappNumber,
+          socialLinks: org?.socialLinks || {}
+        },
         labels: {
           group: config?.labels?.groupLabel || 'Group',
           member: config?.labels?.memberLabel || 'Member'

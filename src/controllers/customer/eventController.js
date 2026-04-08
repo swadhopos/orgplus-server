@@ -135,6 +135,10 @@ exports.pledgeEvent = async (req, res, next) => {
 
         // 2. Identify the member record
         let finalMemberId = null;
+        let contactPerson = null;
+        let contactPhone = null;
+        let contactEmail = null;
+
         if (sponsorType === 'member') {
             if (targetMemberId) {
                 console.log('[Pledge] Targeting specific member:', targetMemberId);
@@ -144,18 +148,32 @@ exports.pledgeEvent = async (req, res, next) => {
                   organizationId: new mongoose.Types.ObjectId(orgId), 
                   currentHouseholdId: householdId ? new mongoose.Types.ObjectId(householdId) : null,
                   isDeleted: false 
-                }).select('_id');
+                });
                 
                 if (!targetMember) {
                   throw new ValidationError('Selected member not found in your household');
                 }
                 finalMemberId = targetMember._id;
+                contactPerson = targetMember.fullName;
+                contactPhone = targetMember.mobileNumber || null;
+                contactEmail = targetMember.email || null;
             } else {
                 console.log('[Pledge] Fallback to current user member record:', uid);
                 // Fallback to the logged-in user
-                const member = await Member.findOne({ userId: uid, organizationId: orgId }).select('_id');
+                const member = await Member.findOne({ userId: uid, organizationId: orgId });
                 if (!member) throw new NotFoundError('Member record not found');
                 finalMemberId = member._id;
+                contactPerson = member.fullName;
+                contactPhone = member.mobileNumber || null;
+                contactEmail = member.email || null;
+            }
+        } else if (sponsorType === 'household') {
+            // For household pledges, use logged-in member as contact
+            const member = await Member.findOne({ userId: uid, organizationId: orgId });
+            if (member) {
+                contactPerson = member.fullName;
+                contactPhone = member.mobileNumber || null;
+                contactEmail = member.email || null;
             }
         }
 
@@ -168,6 +186,9 @@ exports.pledgeEvent = async (req, res, next) => {
             sponsorType: sponsorType,
             memberId: finalMemberId,
             householdId: sponsorType === 'household' ? householdId : null,
+            contactPerson: contactPerson,
+            contactPhone: contactPhone,
+            contactEmail: contactEmail,
             amount: Number(amount),
             currency: (event || fundraiser).currency || 'INR',
             type: 'cash',
@@ -194,6 +215,66 @@ exports.pledgeEvent = async (req, res, next) => {
         });
     } catch (error) {
         console.error('[Pledge] Error in pledgeEvent:', error);
+        next(error);
+    }
+};
+
+/**
+ * GET /customer/events/:id/pledges
+ * Fetch pledges made by the user's household/member for a specific event/fundraiser
+ */
+exports.getEventPledges = async (req, res, next) => {
+    try {
+        const { orgId, uid, householdId } = req.user;
+        const { id } = req.params;
+
+        // Find user's member ID as a fallback if no householdId
+        const member = await Member.findOne({ userId: uid, organizationId: orgId }).select('_id currentHouseholdId');
+        
+        let queryCondition = [];
+        if (householdId || (member && member.currentHouseholdId)) {
+            const hId = householdId || member.currentHouseholdId;
+            queryCondition.push({ householdId: hId });
+            // Also include individual member pledges within this household
+            const householdMembers = await Member.find({ currentHouseholdId: hId, isDeleted: false }).select('_id');
+            const memberIds = householdMembers.map(m => m._id);
+            if (memberIds.length > 0) {
+                queryCondition.push({ memberId: { $in: memberIds } });
+            }
+        } else if (member) {
+            queryCondition.push({ memberId: member._id });
+        } else {
+             // Edge case: no member record found
+             return res.json({ success: true, data: [] });
+        }
+
+        const pledges = await Sponsor.find({
+            organizationId: orgId,
+            isDeleted: false,
+            $and: [
+                { $or: [{ eventId: id }, { fundraiserId: id }] },
+                { $or: queryCondition }
+            ]
+        })
+        .populate('memberId', 'fullName')
+        .sort({ createdAt: -1 })
+        .lean();
+
+        // format output
+        const data = pledges.map(p => ({
+            id: p._id,
+            amount: p.amount,
+            currency: p.currency,
+            status: p.status,
+            type: p.type,
+            notes: p.notes,
+            sponsorType: p.sponsorType,
+            createdAt: p.createdAt,
+            memberName: p.memberId ? p.memberId.fullName : (p.sponsorType === 'household' ? 'Household' : 'Unknown')
+        }));
+
+        res.json({ success: true, data });
+    } catch (error) {
         next(error);
     }
 };

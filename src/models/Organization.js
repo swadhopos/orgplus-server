@@ -108,6 +108,18 @@ const organizationSchema = new mongoose.Schema({
     trim: true,
     maxlength: [1000, 'Description cannot exceed 1000 characters']
   },
+  whatsappNumber: {
+    type: String,
+    trim: true,
+    maxlength: [20, 'WhatsApp number cannot exceed 20 characters']
+  },
+  socialLinks: {
+    facebook: { type: String, trim: true },
+    instagram: { type: String, trim: true },
+    twitter: { type: String, trim: true },
+    linkedin: { type: String, trim: true },
+    youtube: { type: String, trim: true }
+  },
   logoUrl: {
     type: String,
     default: null,

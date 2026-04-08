@@ -15,6 +15,14 @@ const householdSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Zone'
   },
+  ward: {
+    type: String,
+    trim: true
+  },
+  panchayatMunicipality: {
+    type: String,
+    trim: true
+  },
 
   // Address
   houseName: {
@@ -23,6 +31,10 @@ const householdSchema = new mongoose.Schema({
     trim: true
   },
   houseNumber: {
+    type: String,
+    trim: true
+  },
+  govHouseNumber: {
     type: String,
     trim: true
   },

@@ -12,6 +12,12 @@ const noticeSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  
+  expiresAt: {
+    type: Date,
+    default: null,
+    index: true
+  },
 
   title: {
     type: String,

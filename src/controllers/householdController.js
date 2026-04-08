@@ -16,10 +16,14 @@ exports.createHousehold = async (req, res, next) => {
     const {
       houseName,
       houseNumber,
+      govHouseNumber,
+      ward,
+      panchayatMunicipality,
       addressLine1,
       addressLine2,
       postalCode,
       primaryMobile,
+      financialStatus,
       status,
       email,
       password,
@@ -79,11 +83,15 @@ exports.createHousehold = async (req, res, next) => {
     const household = new Household({
       houseName,
       houseNumber: generatedHouseNumber,
+      govHouseNumber,
+      ward,
+      panchayatMunicipality,
       memberCounter: 0,
       addressLine1,
       addressLine2,
       postalCode,
       primaryMobile,
+      financialStatus: financialStatus || 'None',
       status: status || 'active',
       organizationId: orgId,
       createdByUserId: req.user.uid
@@ -266,6 +274,41 @@ exports.createHouseholdSurvey = async (req, res, next) => {
       );
     }
 
+    // 4.5 Link internal family relationships
+    for (let i = 0; i < membersData.length; i++) {
+      const mData = membersData[i];
+      const member = createdMembers[i];
+      let hasUpdates = false;
+
+      if (mData.fatherIndex !== undefined && createdMembers[mData.fatherIndex]) {
+        member.fatherId = createdMembers[mData.fatherIndex]._id;
+        member.isRelationshipVerified = true;
+        hasUpdates = true;
+      }
+      if (mData.motherIndex !== undefined && createdMembers[mData.motherIndex]) {
+        member.motherId = createdMembers[mData.motherIndex]._id;
+        member.isRelationshipVerified = true;
+        hasUpdates = true;
+      }
+      if (mData.spouseIndex !== undefined && createdMembers[mData.spouseIndex]) {
+        member.spouseId = createdMembers[mData.spouseIndex]._id;
+        member.isRelationshipVerified = true;
+        hasUpdates = true;
+        
+        // Bidirectional spouse link
+        const spouse = createdMembers[mData.spouseIndex];
+        if (spouse && !spouse.spouseId) {
+          spouse.spouseId = member._id;
+          spouse.isRelationshipVerified = true;
+          await spouse.save();
+        }
+      }
+
+      if (hasUpdates) {
+        await member.save();
+      }
+    }
+
     // 5. Update household with headMemberId and save memberCounter
     if (headMember) {
       household.headMemberId = headMember._id;
@@ -394,10 +437,14 @@ exports.updateHousehold = async (req, res, next) => {
     const {
       houseName,
       houseNumber,
+      govHouseNumber,
+      ward,
+      panchayatMunicipality,
       addressLine1,
       addressLine2,
       postalCode,
       primaryMobile,
+      financialStatus,
       status
     } = req.body;
 
@@ -415,10 +462,14 @@ exports.updateHousehold = async (req, res, next) => {
     // Update fields
     if (houseName) household.houseName = houseName;
     if (houseNumber !== undefined) household.houseNumber = houseNumber;
+    if (govHouseNumber !== undefined) household.govHouseNumber = govHouseNumber;
+    if (ward !== undefined) household.ward = ward;
+    if (panchayatMunicipality !== undefined) household.panchayatMunicipality = panchayatMunicipality;
     if (addressLine1 !== undefined) household.addressLine1 = addressLine1;
     if (addressLine2 !== undefined) household.addressLine2 = addressLine2;
     if (postalCode !== undefined) household.postalCode = postalCode;
     if (primaryMobile !== undefined) household.primaryMobile = primaryMobile;
+    if (financialStatus !== undefined) household.financialStatus = financialStatus;
     if (status) household.status = status;
     if (req.body.capacityOverrides !== undefined) household.capacityOverrides = req.body.capacityOverrides;
 
