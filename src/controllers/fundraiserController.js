@@ -68,7 +68,7 @@ exports.listFundraisers = async (req, res, next) => {
         const filter = { ...req.tenantFilter, isDeleted: false };
         if (status) filter.status = status;
         if (type) filter.type = type;
-        if (search) filter.name = { $regex: search, $options: 'i' };
+        if (search && typeof search === 'string') filter.name = { $regex: search, $options: 'i' };
 
         const [fundraisers, total] = await Promise.all([
             Fundraiser.find(filter).sort({ startDate: -1 }).skip(skip).limit(l),
@@ -183,11 +183,19 @@ exports.getFundraiser = async (req, res, next) => {
 exports.updateFundraiser = async (req, res, next) => {
     try {
         const { orgId, id } = req.params;
-        const updates = req.body;
+        // Explicitly pick allowed fields to prevent mass assignment of sensitive internal fields
+        const allowedUpdates = {};
+        const allowedFields = ['name', 'description', 'type', 'status', 'goalAmount', 'currency', 'startDate', 'endDate', 'visibility', 'upiAddress'];
+        
+        allowedFields.forEach(field => {
+            if (req.body[field] !== undefined) {
+                allowedUpdates[field] = req.body[field];
+            }
+        });
 
         const fundraiser = await Fundraiser.findOneAndUpdate(
             { _id: id, organizationId: orgId, isDeleted: false },
-            { $set: updates, updatedAt: new Date() },
+            { $set: allowedUpdates, updatedAt: new Date() },
             { new: true, runValidators: true }
         );
 
@@ -370,11 +378,23 @@ exports.updatePledge = async (req, res, next) => {
         const oldStatus = pledge.status;
 
         // Strip special fields from updates to prevent tampering
-        const { createTransaction, paymentMethod, referenceNumber, ...pledgeUpdates } = updates;
+        const { createTransaction, paymentMethod, referenceNumber } = updates;
+        const allowedPledgeFields = [
+            'sponsorType', 'memberId', 'householdId', 'externalName', 
+            'careOfMemberId', 'contactPerson', 'contactPhone', 'contactEmail', 
+            'amount', 'type', 'status', 'notes'
+        ];
 
-        if (pledgeUpdates.amount) pledgeUpdates.amount = Number(pledgeUpdates.amount);
+        allowedPledgeFields.forEach(field => {
+            if (updates[field] !== undefined) {
+                if (field === 'amount') {
+                    pledge.amount = Number(updates.amount);
+                } else {
+                    pledge[field] = updates[field];
+                }
+            }
+        });
 
-        Object.assign(pledge, pledgeUpdates);
         pledge.updatedAt = new Date();
         await pledge.save();
 

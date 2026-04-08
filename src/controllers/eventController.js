@@ -75,7 +75,7 @@ exports.listEvents = async (req, res, next) => {
         const filter = { organizationId: orgId, isDeleted: false };
         if (status) filter.status = status;
         if (type) filter.type = type;
-        if (search) filter.name = { $regex: search, $options: 'i' };
+        if (search && typeof search === 'string') filter.name = { $regex: search, $options: 'i' };
 
         const [events, total] = await Promise.all([
             Event.find(filter).sort({ startDate: -1 }).skip(skip).limit(l),

@@ -83,6 +83,7 @@ app.use(requestLogger);
 
 // Apply rate limiting to auth routes
 app.use('/api/auth', authLimiter);
+app.use('/api/customer/auth', authLimiter);
 
 
 // Health check endpoint

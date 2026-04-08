@@ -280,7 +280,7 @@ exports.listMembers = async (req, res, next) => {
     }
 
     // Search filter — matches fullName or memberNumber
-    if (search) {
+    if (search && typeof search === 'string') {
       filter.$or = [
         { fullName: { $regex: search, $options: 'i' } },
         { memberNumber: { $regex: search, $options: 'i' } }
