@@ -30,6 +30,8 @@ const transactionRoutes = require('./routes/transactionRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const customerRoutes = require('./routes/customer/index');
+const supportTicketRoutes = require('./routes/supportTickets');
+const adminSupportTicketRoutes = require('./routes/adminSupportTickets');
 
 const app = express();
 
@@ -101,6 +103,7 @@ app.use('/api/organizations', organizationRoutes);
 app.use('/api/admin/niche-types', nicheTypeRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/customer', customerRoutes);
+app.use('/api/admin/support-tickets', adminSupportTicketRoutes);
 
 // Nested routes under organizations - Protected by Auth and Org Access
 const { authenticateToken } = require('./middleware/auth');
@@ -230,6 +233,12 @@ app.use('/api/organizations/:orgId/transactions',
   authenticateToken,
   requireOrgAccess,
   transactionRoutes
+);
+
+app.use('/api/organizations/:orgId/support-tickets',
+  authenticateToken,
+  requireOrgAccess,
+  supportTicketRoutes
 );
 
 // Only mount meetings on the organization root

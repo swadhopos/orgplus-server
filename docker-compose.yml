@@ -1,0 +1,13 @@
+name: orgplus
+
+services:
+  app:
+    build: .
+    container_name: orgplus-server
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    # The app will connect to your existing DB using the MONGODB_URI in your .env
+    # Treat it exactly like an Atlas URI.
+    restart: unless-stopped

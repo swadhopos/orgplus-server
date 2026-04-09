@@ -236,7 +236,7 @@ exports.createMember = async (req, res, next) => {
 exports.listMembers = async (req, res, next) => {
   try {
     const { orgId } = req.params;
-    const { page = 1, limit = 10, currentHouseholdId: queryHHId, householdId, search } = req.query;
+    const { page = 1, limit = 10, currentHouseholdId: queryHHId, householdId, search, bloodGroup } = req.query;
     const currentHouseholdId = queryHHId || householdId;
     const skip = (page - 1) * limit;
 
@@ -277,6 +277,11 @@ exports.listMembers = async (req, res, next) => {
 
     if (filter._id && typeof filter._id === 'string') {
       filter._id = new mongoose.Types.ObjectId(filter._id);
+    }
+
+    // Blood Group filter
+    if (bloodGroup && bloodGroup !== 'all') {
+      filter['medicalInfo.bloodGroup'] = bloodGroup;
     }
 
     // Search filter — matches fullName or memberNumber
@@ -321,7 +326,7 @@ exports.getMember = async (req, res, next) => {
     const filter = { _id: id, organizationId: orgId, isDeleted: false, ...req.tenantFilter };
 
     const member = await Member.findOne(filter)
-      .populate('currentHouseholdId', 'houseName houseNumber')
+      .populate('currentHouseholdId', 'houseName houseNumber addressLine1 addressLine2 ward panchayatMunicipality')
       .populate('fatherId', 'fullName')
       .populate('motherId', 'fullName')
       .populate('spouseId', 'fullName')

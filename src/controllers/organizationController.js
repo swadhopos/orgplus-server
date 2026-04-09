@@ -260,6 +260,13 @@ exports.updateOrganization = async (req, res, next) => {
     if (contactEmail) organization.contactEmail = contactEmail;
     if (contactPhone) organization.contactPhone = contactPhone;
     if (status) organization.status = status;
+    if (req.body.registrationNumber !== undefined) organization.registrationNumber = req.body.registrationNumber;
+    if (req.body.website !== undefined) organization.website = req.body.website;
+    if (req.body.alternatePhone !== undefined) organization.alternatePhone = req.body.alternatePhone;
+    if (req.body.city !== undefined) organization.city = req.body.city;
+    if (req.body.state !== undefined) organization.state = req.body.state;
+    if (req.body.pincode !== undefined) organization.pincode = req.body.pincode;
+    if (req.body.country !== undefined) organization.country = req.body.country;
     if (req.body.subtype !== undefined) organization.subtype = req.body.subtype;
     if (req.body.primaryColor !== undefined) organization.primaryColor = req.body.primaryColor;
     if (req.body.secondaryColor !== undefined) organization.secondaryColor = req.body.secondaryColor;
