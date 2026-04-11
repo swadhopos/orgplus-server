@@ -20,8 +20,11 @@ try {
   // Check if Firebase is already initialized
   if (admin.apps.length === 0) {
     // Method 1: Use service account file path
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_PATH) {
-      const serviceAccountPath = resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH);
+    const serviceAccountPath = process.env.FIREBASE_SERVICE_ACCOUNT_PATH ? resolve(process.env.FIREBASE_SERVICE_ACCOUNT_PATH) : null;
+    const fs = require('fs');
+    const hasServiceAccountFile = serviceAccountPath && fs.existsSync(serviceAccountPath);
+
+    if (hasServiceAccountFile) {
       const serviceAccount = JSON.parse(readFileSync(serviceAccountPath, 'utf8'));
       
       firebaseApp = admin.initializeApp({
@@ -51,9 +54,10 @@ try {
     }
     // No configuration found
     else {
+      const errorMsg = hasServiceAccountFile ? '' : `Service account file not found at: ${serviceAccountPath}\n`;
       throw new Error(
-        'Firebase configuration not found. Please provide either:\n' +
-        '1. FIREBASE_SERVICE_ACCOUNT_PATH environment variable, or\n' +
+        'Firebase configuration not found. ' + errorMsg + 'Please provide either:\n' +
+        '1. A valid FIREBASE_SERVICE_ACCOUNT_PATH environment variable, or\n' +
         '2. FIREBASE_PROJECT_ID, FIREBASE_PRIVATE_KEY, and FIREBASE_CLIENT_EMAIL environment variables'
       );
     }
