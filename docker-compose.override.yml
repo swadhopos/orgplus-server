@@ -1,0 +1,9 @@
+services:
+  app:
+    ports:
+      - "5001:5000"
+    environment:
+      - MONGODB_URI=mongodb://host.docker.internal:27017/orgplus
+      - FIREBASE_SERVICE_ACCOUNT_PATH=/app/firebase-admin-sdk.json
+    volumes:
+      - ./creds/orgplus-b4585-firebase-adminsdk-fbsvc-ad9d478edd.json:/app/firebase-admin-sdk.json:ro

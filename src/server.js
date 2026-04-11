@@ -4,6 +4,7 @@ const { connectDatabase } = require('./config/database');
 const logger = require('./utils/logger');
 const { initBillingCron } = require('./services/billingCron');
 const { initNoticeCron } = require('./services/noticeCron');
+const backupService = require('./services/backupService');
 const seedNiches = require('./utils/seedNiches');
 
 const PORT = process.env.PORT || 3000;
@@ -50,6 +51,7 @@ connectDatabase()
       // Initialize background jobs
       initBillingCron();
       initNoticeCron();
+      backupService.init();
     });
 
     // Graceful shutdown handling

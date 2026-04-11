@@ -280,7 +280,7 @@ exports.updateOrganization = async (req, res, next) => {
       }
       
       const ext = path.extname(req.file.originalname) || '.jpg';
-      const key = `orgs/${id}/logo_${uuidv4()}${ext}`;
+      const key = `orgplus-logos/${id}/logo_${uuidv4()}${ext}`;
       const result = await storage.upload(req.file.buffer, key, req.file.mimetype);
       
       organization.logoUrl = result.url;

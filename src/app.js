@@ -32,6 +32,7 @@ const publicRoutes = require('./routes/publicRoutes');
 const customerRoutes = require('./routes/customer/index');
 const supportTicketRoutes = require('./routes/supportTickets');
 const adminSupportTicketRoutes = require('./routes/adminSupportTickets');
+const backupRoutes = require('./routes/backupRoutes');
 
 const app = express();
 
@@ -104,6 +105,7 @@ app.use('/api/admin/niche-types', nicheTypeRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/customer', customerRoutes);
 app.use('/api/admin/support-tickets', adminSupportTicketRoutes);
+app.use('/api/admin/backups', backupRoutes);
 
 // Nested routes under organizations - Protected by Auth and Org Access
 const { authenticateToken } = require('./middleware/auth');

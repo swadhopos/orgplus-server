@@ -9,7 +9,7 @@ COPY package*.json ./
 
 # Pin versions using the lock file
 # npm ci ensures the exact versions in package-lock.json are installed
-RUN npm ci --only=production
+RUN npm install --omit=dev
 
 # Copy the rest of the application code
 COPY . .
