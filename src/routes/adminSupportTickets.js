@@ -9,6 +9,9 @@ const { requireRole } = require('../middleware/authorize');
 
 const router = express.Router();
 
+// Allow CORS preflight to pass through without auth
+router.options('*', (req, res) => res.sendStatus(204));
+
 router.use(authenticateToken);
 router.use(requireRole('systemAdmin'));
 

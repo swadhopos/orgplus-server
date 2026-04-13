@@ -43,8 +43,25 @@ app.use(helmet({
 
 
 // CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  : [];
+
+logger.info(`CORS allowed origins: ${allowedOrigins.length ? allowedOrigins.join(', ') : 'ALL (wildcard)'}`);
+
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : '*',
+  origin: allowedOrigins.length
+    ? (origin, callback) => {
+        // Allow requests with no origin (e.g., mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+          callback(null, true);
+        } else {
+          logger.warn(`CORS blocked origin: ${origin}`);
+          callback(new Error(`CORS policy: Origin ${origin} not allowed`));
+        }
+      }
+    : '*',
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-platform', 'x-device-id'],
