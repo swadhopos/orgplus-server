@@ -11,9 +11,6 @@ const { requireMainCommitteeAccess } = require('../middleware/committeeAuth');
 // All routes require admin, systemAdmin, staff, or orgMember role
 router.use(requireRole('systemAdmin', 'admin', 'staff', 'orgMember'));
 
-// For staff, require member management permission
-router.use(requirePermission('canManageMembers'));
-
 // All routes apply tenant filtering
 router.use(applyTenantFilter);
 
@@ -27,28 +24,28 @@ router.delete('/:id/fcm-token', memberController.removeFcmToken);
 // All following routes require an active main committee officer role or admin
 router.use(requireMainCommitteeAccess);
 
-// Create member
-router.post('/', memberController.createMember);
+// Create member (requires full member management permission)
+router.post('/', requirePermission('canManageMembers'), memberController.createMember);
 
 
-// Triage routes
-router.get('/triage', memberController.getPendingMembers);
-router.post('/:id/admit', memberController.admitMember);
-router.post('/:id/reject', memberController.rejectMember);
+// Triage routes (accessible by triage volunteers or full member managers)
+router.get('/triage', requirePermission('canTriageMembers', 'canManageMembers'), memberController.getPendingMembers);
+router.post('/:id/admit', requirePermission('canTriageMembers', 'canManageMembers'), memberController.admitMember);
+router.post('/:id/reject', requirePermission('canTriageMembers', 'canManageMembers'), memberController.rejectMember);
 
-// List members
-router.get('/', memberController.listMembers);
+// List members (requires full member management permission)
+router.get('/', requirePermission('canManageMembers'), memberController.listMembers);
 
-// Get member by ID
-router.get('/:id', memberController.getMember);
+// Get member by ID (requires full member management permission)
+router.get('/:id', requirePermission('canManageMembers'), memberController.getMember);
 
-// Get member relationships
-router.get('/:id/relationships', memberController.getMemberRelationships);
+// Get member relationships (requires full member management permission)
+router.get('/:id/relationships', requirePermission('canManageMembers'), memberController.getMemberRelationships);
 
-// Update member
-router.put('/:id', memberController.updateMember);
+// Update member (requires full member management permission)
+router.put('/:id', requirePermission('canManageMembers'), memberController.updateMember);
 
-// Delete member
-router.delete('/:id', memberController.deleteMember);
+// Delete member (requires full member management permission)
+router.delete('/:id', requirePermission('canManageMembers'), memberController.deleteMember);
 
 module.exports = router;

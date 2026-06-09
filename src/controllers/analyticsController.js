@@ -43,15 +43,26 @@ const handleCacheRequest = async (orgId, type, req) => {
 exports.getDashboardSummary = asyncHandler(async (req, res) => {
     const { orgId } = req.params;
     
-    // Fetch both in parallel
-    const [demographicResult, financialResult] = await Promise.all([
-        handleCacheRequest(orgId, 'demographic', req),
-        handleCacheRequest(orgId, 'financial', req)
-    ]);
+    // Determine financial access: Admin roles or staff with explicit permissions
+    const isSystemAdmin = req.user.role === 'systemAdmin';
+    const isAdmin = req.user.role === 'admin';
+    const hasFinancialAccess = isSystemAdmin || isAdmin || (req.user.role === 'staff' && (req.user.permissions?.includes('canManageFinance') || req.user.permissions?.includes('canViewReports')));
+
+    const promises = [
+        handleCacheRequest(orgId, 'demographic', req)
+    ];
+
+    if (hasFinancialAccess) {
+        promises.push(handleCacheRequest(orgId, 'financial', req));
+    } else {
+        promises.push(Promise.resolve({ data: {}, meta: {} }));
+    }
+
+    const [demographicResult, financialResult] = await Promise.all(promises);
 
     // Construct the dashboard summary payload (8 cards)
-    const dData = demographicResult.data;
-    const fData = financialResult.data;
+    const dData = demographicResult.data || {};
+    const fData = financialResult.data || {};
 
     const payload = {
         demographicCards: {
@@ -61,15 +72,20 @@ exports.getDashboardSummary = asyncHandler(async (req, res) => {
             totalHouseholds: dData.households?.total, // omitted by client if undefined natively
             activeHouseholds: dData.households?.active
         },
-        financialCards: {
+        financialCards: hasFinancialAccess ? {
             netBalance: fData.overview?.netBalance || 0,
             cashPosition: fData.overview?.cashPosition || 0,
             totalIncome: fData.overview?.totalIncome || 0,
             totalExpense: fData.overview?.totalExpense || 0
+        } : {
+            netBalance: 0,
+            cashPosition: 0,
+            totalIncome: 0,
+            totalExpense: 0
         },
         meta: {
             demographic: demographicResult.meta,
-            financial: financialResult.meta
+            financial: hasFinancialAccess ? financialResult.meta : { freshness: 'fresh', computedAt: new Date() }
         }
     };
 

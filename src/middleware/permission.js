@@ -21,7 +21,7 @@ const Staff = require('../models/Staff');
  * @param {string} permissionKey - The name of the permission to require (e.g., 'canManageMembers')
  * @returns {Function} Express middleware function
  */
-const requirePermission = (permissionKey) => {
+const requirePermission = (...permissionKeys) => {
     return async (req, res, next) => {
         try {
             // Ensure user is authenticated
@@ -34,7 +34,7 @@ const requirePermission = (permissionKey) => {
                 logger.debug('Admin user bypassing permission check', {
                     uid: req.user.uid,
                     role: req.user.role,
-                    permissionRequired: permissionKey,
+                    permissionsRequired: permissionKeys,
                     requestId: req.id
                 });
                 return next();
@@ -70,15 +70,18 @@ const requirePermission = (permissionKey) => {
 
                 const userPermissions = staff.permissions || [];
 
-                if (!userPermissions.includes(permissionKey)) {
+                // Check if user has at least one of the required permissions
+                const hasRequiredPermission = permissionKeys.some(key => userPermissions.includes(key));
+
+                if (!hasRequiredPermission) {
                     logger.warn('Staff user lacking required permission', {
                         uid: req.user.uid,
                         email: req.user.email,
-                        permissionRequired: permissionKey,
+                        permissionsRequired: permissionKeys,
                         userPermissions: userPermissions,
                         requestId: req.id
                     });
-                    throw new AuthorizationError(`Access denied. Missing permission: ${permissionKey}`);
+                    throw new AuthorizationError(`Access denied. Missing one of required permissions: ${permissionKeys.join(', ')}`);
                 }
 
                 // Attach permissions to user object for downstream use
@@ -87,7 +90,7 @@ const requirePermission = (permissionKey) => {
                 // Log successful authorization for staff
                 logger.debug('Staff permission authorized from DB', {
                     uid: req.user.uid,
-                    permissionRequired: permissionKey,
+                    permissionsRequired: permissionKeys,
                     requestId: req.id
                 });
                 return next();
@@ -97,7 +100,7 @@ const requirePermission = (permissionKey) => {
             logger.warn('User lacking role capable of having permissions', {
                 uid: req.user.uid,
                 userRole: req.user.role,
-                permissionRequired: permissionKey,
+                permissionsRequired: permissionKeys,
                 requestId: req.id
             });
             throw new AuthorizationError(`Access denied. You do not have permission to perform this action.`);

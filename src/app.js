@@ -39,32 +39,39 @@ const app = express();
 // Security middleware
 app.use(helmet({
   crossOriginResourcePolicy: false, // Allow cross-origin images in dev
+  contentSecurityPolicy: process.env.NODE_ENV === 'development' ? false : undefined,
 }));
 
 
 // CORS configuration
+const normalizeOrigin = (o) => o?.replace(/\/+$/, '').toLowerCase();
+
 const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(o => o.trim()).filter(Boolean)
+  ? process.env.ALLOWED_ORIGINS.split(',').map(o => normalizeOrigin(o.trim())).filter(Boolean)
   : [];
 
 logger.info(`CORS allowed origins: ${allowedOrigins.length ? allowedOrigins.join(', ') : 'ALL (wildcard)'}`);
 
 const corsOptions = {
-  origin: allowedOrigins.length
-    ? (origin, callback) => {
-        // Allow requests with no origin (e.g., mobile apps, curl, Postman)
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          logger.warn(`CORS blocked origin: ${origin}`);
-          callback(new Error(`CORS policy: Origin ${origin} not allowed`));
-        }
-      }
-    : '*',
+  origin: process.env.NODE_ENV === 'development' 
+    ? true // reflect-origin (effectively '*') 
+    : (allowedOrigins.length
+        ? (origin, callback) => {
+            if (!origin) return callback(null, true);
+            
+            const normalizedOrigin = normalizeOrigin(origin);
+            if (allowedOrigins.includes(normalizedOrigin)) {
+              callback(null, true);
+            } else {
+              // Enhanced logging to help detect typos/mismatches in production env vars
+              logger.warn(`CORS blocked: Received origin "${origin}", expected one of: [${allowedOrigins.join(', ')}]`);
+              callback(null, false); // Deny headers without throwing a hard error
+            }
+          }
+        : '*'),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-platform', 'x-device-id'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-platform', 'x-device-id', 'x-org-id'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
   maxAge: 600 // Cache preflight for 10 minutes
 };

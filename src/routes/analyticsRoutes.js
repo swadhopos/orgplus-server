@@ -9,11 +9,11 @@ const router = express.Router({ mergeParams: true });
 // Require basic staff or admin access
 router.use(requireRole('systemAdmin', 'admin', 'staff', 'orgMember'));
 
-// For staff, require report viewing permission
-router.use(requirePermission('canViewReports'));
+// For staff, allow dashboard access if they have reports, members, households, or triage permissions
+router.get('/dashboard', requirePermission('canViewReports', 'canManageMembers', 'canManageHouseholds', 'canTriageMembers'), getDashboardSummary);
 
-router.get('/dashboard', getDashboardSummary);
-router.get('/reports/demographic', getDemographicReport);
-router.get('/reports/financial', getFinancialReport);
+// Standard reports require view reports permission specifically
+router.get('/reports/demographic', requirePermission('canViewReports'), getDemographicReport);
+router.get('/reports/financial', requirePermission('canViewReports'), getFinancialReport);
 
 module.exports = router;
