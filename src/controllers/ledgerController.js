@@ -348,6 +348,10 @@ exports.addTransaction = async (req, res, next) => {
             payment
         } = req.body;
 
+        if (payment && payment.method) {
+            payment.method = payment.method.toLowerCase();
+        }
+
         // Basic validation
         if (!type) throw new ValidationError('Transaction type is required');
         if (!amount) throw new ValidationError('Amount is required');
@@ -422,6 +426,10 @@ exports.updateTransaction = async (req, res, next) => {
             categoryId, memberId, householdId,
             payment
         } = req.body;
+
+        if (payment && payment.method) {
+            payment.method = payment.method.toLowerCase();
+        }
 
         if (memberId && householdId) {
             throw new ValidationError('A transaction can be linked to either a member or a household, not both');

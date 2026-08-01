@@ -295,7 +295,7 @@ exports.collectPayment = async (req, res) => {
         }
 
         transaction.payment = {
-            method: paymentMethod || 'cash',
+            method: (paymentMethod || 'cash').toLowerCase(),
             referenceNumber: referenceNumber || null,
             notes: notes || 'Manual payment collection',
             paidAt: new Date(),
@@ -311,7 +311,7 @@ exports.collectPayment = async (req, res) => {
         transaction.audit.history.push({ 
             action: 'payment_received', 
             byUserId: userId, 
-            note: `Payment collected via ${paymentMethod || 'cash'}` 
+            note: `Payment collected via ${(paymentMethod || 'cash').toLowerCase()}` 
         });
 
         await transaction.save();

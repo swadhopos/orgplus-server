@@ -331,7 +331,7 @@ exports.createPledge = async (req, res, next) => {
                 memberId: pledge.sponsorType === 'member' ? pledge.memberId : null,
                 householdId: pledge.sponsorType === 'household' ? pledge.householdId : null,
                 payment: {
-                    method: paymentMethod || 'cash',
+                    method: (paymentMethod || 'cash').toLowerCase(),
                     referenceNumber: referenceNumber || null,
                     notes: 'Automatically created from pledge confirmation'
                 },
@@ -415,7 +415,7 @@ exports.updatePledge = async (req, res, next) => {
                 memberId: pledge.sponsorType === 'member' ? pledge.memberId : null,
                 householdId: pledge.sponsorType === 'household' ? pledge.householdId : null,
                 payment: {
-                    method: paymentMethod || 'cash',
+                    method: (paymentMethod || 'cash').toLowerCase(),
                     referenceNumber: referenceNumber || null,
                     notes: 'Automatically created from pledge update'
                 },

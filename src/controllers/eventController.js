@@ -309,7 +309,7 @@ exports.createSponsor = async (req, res, next) => {
                 memberId: sponsor.sponsorType === 'member' ? sponsor.memberId : null,
                 householdId: sponsor.sponsorType === 'household' ? sponsor.householdId : null,
                 payment: {
-                    method: paymentMethod || 'cash',
+                    method: (paymentMethod || 'cash').toLowerCase(),
                     referenceNumber: referenceNumber || null,
                     notes: 'Automatically generated from sponsor creation'
                 },
@@ -429,7 +429,7 @@ exports.updateSponsor = async (req, res, next) => {
                 memberId: sponsor.sponsorType === 'member' ? sponsor.memberId : null,
                 householdId: sponsor.sponsorType === 'household' ? sponsor.householdId : null,
                 payment: {
-                    method: paymentMethod || 'cash',
+                    method: (paymentMethod || 'cash').toLowerCase(),
                     referenceNumber: referenceNumber || null,
                     notes: 'Automatically generated from sponsor payment'
                 },
