@@ -231,6 +231,66 @@ exports.createMember = async (req, res, next) => {
 };
 
 /**
+ * Get blood group counts for an organisation (index-only aggregation)
+ * Uses the existing compound index: { organizationId, isDeleted, medicalInfo.bloodGroup }
+ */
+exports.getBloodGroupCounts = async (req, res, next) => {
+  try {
+    const { orgId } = req.params;
+
+    const orgObjectId = new mongoose.Types.ObjectId(orgId);
+
+    // Base tenant match — same shape as listMembers so the same index is used
+    const baseMatch = {
+      organizationId: orgObjectId,
+      isDeleted: false,
+      ...req.tenantFilter,
+    };
+
+    // Convert householdId in tenantFilter if present (same as listMembers)
+    if (baseMatch.householdId) {
+      baseMatch.currentHouseholdId = new mongoose.Types.ObjectId(baseMatch.householdId);
+      delete baseMatch.householdId;
+    }
+    if (baseMatch.organizationId && typeof baseMatch.organizationId === 'string') {
+      baseMatch.organizationId = new mongoose.Types.ObjectId(baseMatch.organizationId);
+    }
+
+    const results = await Member.aggregate([
+      { $match: baseMatch },
+      {
+        $group: {
+          _id: { $ifNull: ['$medicalInfo.bloodGroup', null] },
+          count: { $sum: 1 },
+        },
+      },
+    ]);
+
+    // Build a clean counts map; null / missing → 'Unknown' bucket
+    const counts = {
+      'A+': 0, 'A-': 0, 'B+': 0, 'B-': 0,
+      'AB+': 0, 'AB-': 0, 'O+': 0, 'O-': 0,
+      'Unknown': 0,
+    };
+    let total = 0;
+
+    for (const row of results) {
+      const key = row._id === null ? 'Unknown' : row._id;
+      if (key in counts) {
+        counts[key] += row.count;
+      } else {
+        counts['Unknown'] += row.count; // any unexpected value → Unknown
+      }
+      total += row.count;
+    }
+
+    res.json({ success: true, data: { counts, total } });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
  * List members (with tenant filtering)
  */
 exports.listMembers = async (req, res, next) => {
@@ -281,7 +341,21 @@ exports.listMembers = async (req, res, next) => {
 
     // Blood Group filter
     if (bloodGroup && bloodGroup !== 'all') {
-      filter['medicalInfo.bloodGroup'] = bloodGroup;
+      if (bloodGroup === 'Unknown') {
+        // Match explicitly set 'Unknown' OR null/missing field
+        filter.$and = [
+          ...(filter.$and || []),
+          {
+            $or: [
+              { 'medicalInfo.bloodGroup': 'Unknown' },
+              { 'medicalInfo.bloodGroup': null },
+              { 'medicalInfo.bloodGroup': { $exists: false } }
+            ]
+          }
+        ];
+      } else {
+        filter['medicalInfo.bloodGroup'] = bloodGroup;
+      }
     }
 
     // Search filter — matches fullName or memberNumber

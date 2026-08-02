@@ -36,6 +36,9 @@ router.post('/:id/reject', requirePermission('canTriageMembers', 'canManageMembe
 // List members (requires full member management permission)
 router.get('/', requirePermission('canManageMembers'), memberController.listMembers);
 
+// Blood group counts — index-only aggregation, fired once on BloodRegistry mount
+router.get('/blood-group-counts', requirePermission('canManageMembers'), memberController.getBloodGroupCounts);
+
 // Get member by ID (requires full member management permission)
 router.get('/:id', requirePermission('canManageMembers'), memberController.getMember);
 
